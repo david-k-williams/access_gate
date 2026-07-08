@@ -50,6 +50,21 @@ class ExampleApp extends StatelessWidget {
                   fallback: const Text('String reports are not available.'),
                   child: const Text('String gate: advanced reports'),
                 ),
+                const SizedBox(height: 12),
+                AccessGate(
+                  policy: AccessPolicy.allOf(<AccessPolicy>[
+                    AccessPolicy.anyOf(<AccessPolicy>[
+                      AccessPolicy.role('admin'),
+                      AccessPolicy.permission('reports.manage'),
+                    ]),
+                    AccessPolicy.not(
+                      AccessPolicy.role('suspended'),
+                      reason: 'Suspended users cannot access reports.',
+                    ),
+                  ]),
+                  fallback: const Text('Composed policy did not allow access.'),
+                  child: const Text('Composed policy gate: reports access'),
+                ),
               ],
             ),
           ),

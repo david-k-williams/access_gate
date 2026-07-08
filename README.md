@@ -14,6 +14,7 @@ state, or a backend policy response, then expose those facts through
 - RBAC gates with required roles or any-of role checks.
 - Permission gates for fine-grained access checks.
 - ABAC gates with exact attributes and custom predicates.
+- Policy composition with all-of, any-of, and not rules.
 - `AccessScope` and `AccessController` for inherited access state.
 - `AccessHidden`, a zero-render-object fallback inspired by `nil`.
 
@@ -94,6 +95,32 @@ AccessGate.when(
   },
   predicateReason: 'Requires access to this team.',
   child: const TeamSettings(),
+);
+```
+
+## Policy composition
+
+Compose policies when access can be granted through multiple paths, or when an
+allow rule needs an explicit exclusion.
+
+```dart
+final policy = AccessPolicy.allOf([
+  AccessPolicy.anyOf([
+    AccessPolicy.role('admin'),
+    AccessPolicy(
+      allPermissions: {'reports.view'},
+      attributes: {'plan': 'pro'},
+    ),
+  ]),
+  AccessPolicy.not(
+    AccessPolicy.role('suspended'),
+    reason: 'Suspended users cannot access reports.',
+  ),
+]);
+
+AccessGate(
+  policy: policy,
+  child: const AdvancedReportsPage(),
 );
 ```
 

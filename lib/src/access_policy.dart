@@ -7,11 +7,15 @@ import 'access_key.dart';
 /// Custom access check for app-specific ABAC logic.
 typedef AccessPredicate = bool Function(AccessContext context);
 
+enum _AccessPolicyMode { leaf, allOf, anyOf, not }
+
 /// A provider-agnostic access policy.
 ///
 /// Policies can combine feature flags, role-based access control (RBAC),
 /// permission checks, and attribute-based access control (ABAC). All populated
-/// requirements must pass for access to be allowed.
+/// requirements must pass for access to be allowed. Use [AccessPolicy.allOf],
+/// [AccessPolicy.anyOf], and [AccessPolicy.not] to compose policies into larger
+/// access rules.
 @immutable
 class AccessPolicy {
   const AccessPolicy._({
@@ -25,6 +29,9 @@ class AccessPolicy {
     required this.attributes,
     required this.predicate,
     required this.predicateReason,
+    required this._mode,
+    required this._policies,
+    required this._notReason,
   });
 
   /// Creates a policy from explicit requirements.
@@ -51,8 +58,13 @@ class AccessPolicy {
       attributes: Map<String, Object?>.unmodifiable(attributes),
       predicate: predicate,
       predicateReason: predicateReason,
+      mode: _AccessPolicyMode.leaf,
+      policies: const <AccessPolicy>[],
+      notReason: _defaultNotReason,
     );
   }
+
+  static const String _defaultNotReason = 'Access matched a denied policy.';
 
   /// A reusable policy with no requirements.
   static const AccessPolicy empty = AccessPolicy._(
@@ -66,7 +78,60 @@ class AccessPolicy {
     attributes: <String, Object?>{},
     predicate: null,
     predicateReason: 'Custom access rule rejected access.',
+    mode: _AccessPolicyMode.leaf,
+    policies: <AccessPolicy>[],
+    notReason: _defaultNotReason,
   );
+
+  /// Creates a policy that requires every child policy to allow access.
+  factory AccessPolicy.allOf(Iterable<AccessPolicy> policies) {
+    return AccessPolicy._composed(
+      mode: _AccessPolicyMode.allOf,
+      policies: policies,
+    );
+  }
+
+  /// Creates a policy that requires at least one child policy to allow access.
+  factory AccessPolicy.anyOf(Iterable<AccessPolicy> policies) {
+    return AccessPolicy._composed(
+      mode: _AccessPolicyMode.anyOf,
+      policies: policies,
+    );
+  }
+
+  /// Creates a policy that allows access only when [policy] denies access.
+  factory AccessPolicy.not(
+    AccessPolicy policy, {
+    String reason = _defaultNotReason,
+  }) {
+    return AccessPolicy._composed(
+      mode: _AccessPolicyMode.not,
+      policies: <AccessPolicy>[policy],
+      notReason: reason,
+    );
+  }
+
+  factory AccessPolicy._composed({
+    required _AccessPolicyMode mode,
+    required Iterable<AccessPolicy> policies,
+    String notReason = _defaultNotReason,
+  }) {
+    return AccessPolicy._(
+      allFeatures: const <String>{},
+      anyFeatures: const <String>{},
+      featureValues: const <String, Object?>{},
+      allRoles: const <String>{},
+      anyRoles: const <String>{},
+      allPermissions: const <String>{},
+      anyPermissions: const <String>{},
+      attributes: const <String, Object?>{},
+      predicate: null,
+      predicateReason: 'Custom access rule rejected access.',
+      mode: mode,
+      policies: List<AccessPolicy>.unmodifiable(policies),
+      notReason: notReason,
+    );
+  }
 
   /// Creates a policy from typed access keys.
   factory AccessPolicy.fromKeys({
@@ -157,8 +222,19 @@ class AccessPolicy {
   /// Reason used when [predicate] returns `false`.
   final String predicateReason;
 
+  final _AccessPolicyMode _mode;
+  final List<AccessPolicy> _policies;
+  final String _notReason;
+
   /// Returns `true` when this policy has no requirements.
   bool get isEmpty {
+    if (_mode == _AccessPolicyMode.allOf) {
+      return _policies.every((policy) => policy.isEmpty);
+    }
+    if (_mode != _AccessPolicyMode.leaf) {
+      return false;
+    }
+
     return allFeatures.isEmpty &&
         anyFeatures.isEmpty &&
         featureValues.isEmpty &&
@@ -172,6 +248,15 @@ class AccessPolicy {
 
   /// Evaluates this policy against [context].
   AccessDecision evaluate(AccessContext context) {
+    return switch (_mode) {
+      _AccessPolicyMode.leaf => _evaluateLeaf(context),
+      _AccessPolicyMode.allOf => _evaluateAllOf(context),
+      _AccessPolicyMode.anyOf => _evaluateAnyOf(context),
+      _AccessPolicyMode.not => _evaluateNot(context),
+    };
+  }
+
+  AccessDecision _evaluateLeaf(AccessContext context) {
     if (isEmpty) {
       return AccessDecision.allow;
     }
@@ -246,6 +331,48 @@ class AccessPolicy {
       return AccessDecision.allow;
     }
     return AccessDecision.deny(reasons);
+  }
+
+  AccessDecision _evaluateAllOf(AccessContext context) {
+    final reasons = <String>[];
+    for (final policy in _policies) {
+      final decision = policy.evaluate(context);
+      if (decision.denied) {
+        reasons.addAll(decision.reasons);
+      }
+    }
+
+    if (reasons.isEmpty) {
+      return AccessDecision.allow;
+    }
+    return AccessDecision.deny(reasons);
+  }
+
+  AccessDecision _evaluateAnyOf(AccessContext context) {
+    if (_policies.isEmpty) {
+      return AccessDecision.deny(const <String>[
+        'Requires at least one policy to allow access.',
+      ]);
+    }
+
+    final reasons = <String>[];
+    for (final policy in _policies) {
+      final decision = policy.evaluate(context);
+      if (decision.allowed) {
+        return AccessDecision.allow;
+      }
+      reasons.addAll(decision.reasons);
+    }
+
+    return AccessDecision.deny(reasons);
+  }
+
+  AccessDecision _evaluateNot(AccessContext context) {
+    final decision = _policies.single.evaluate(context);
+    if (decision.denied) {
+      return AccessDecision.allow;
+    }
+    return AccessDecision.deny(<String>[_notReason]);
   }
 
   static void _requireAll({

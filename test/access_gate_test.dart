@@ -195,6 +195,81 @@ void main() {
         contains('Requires finance approval authority.'),
       );
     });
+
+    test('allOf allows only when every composed policy allows access', () {
+      final context = AccessContext(
+        roles: <String>{'admin'},
+        permissions: <String>{'reports.view'},
+      );
+
+      final allowed = AccessPolicy.allOf(<AccessPolicy>[
+        AccessPolicy.role('admin'),
+        AccessPolicy.permission('reports.view'),
+      ]).evaluate(context);
+      final denied = AccessPolicy.allOf(<AccessPolicy>[
+        AccessPolicy.role('admin'),
+        AccessPolicy.permission('reports.manage'),
+      ]).evaluate(context);
+
+      expect(allowed.allowed, isTrue);
+      expect(denied.denied, isTrue);
+      expect(denied.reasons, contains('Missing permission: reports.manage.'));
+    });
+
+    test('anyOf allows when one composed policy allows access', () {
+      final context = AccessContext(roles: <String>{'analyst'});
+
+      final decision = AccessPolicy.anyOf(<AccessPolicy>[
+        AccessPolicy.role('admin'),
+        AccessPolicy.role('analyst'),
+      ]).evaluate(context);
+
+      expect(decision.allowed, isTrue);
+    });
+
+    test('anyOf denies with child reasons when no composed policy allows', () {
+      final decision = AccessPolicy.anyOf(<AccessPolicy>[
+        AccessPolicy.role('admin'),
+        AccessPolicy.permission('reports.view'),
+      ]).evaluate(AccessContext());
+
+      expect(decision.denied, isTrue);
+      expect(decision.reasons, contains('Missing role: admin.'));
+      expect(decision.reasons, contains('Missing permission: reports.view.'));
+    });
+
+    test('empty composition follows explicit all and any semantics', () {
+      expect(
+        AccessPolicy.allOf(<AccessPolicy>[]).evaluate(AccessContext()).allowed,
+        isTrue,
+      );
+
+      final decision = AccessPolicy.anyOf(
+        <AccessPolicy>[],
+      ).evaluate(AccessContext());
+
+      expect(decision.denied, isTrue);
+      expect(
+        decision.reasons,
+        contains('Requires at least one policy to allow access.'),
+      );
+    });
+
+    test('not inverts a composed policy decision', () {
+      final policy = AccessPolicy.not(
+        AccessPolicy.role('suspended'),
+        reason: 'Suspended users cannot access this.',
+      );
+
+      final allowed = policy.evaluate(AccessContext());
+      final denied = policy.evaluate(
+        AccessContext(roles: <String>{'suspended'}),
+      );
+
+      expect(allowed.allowed, isTrue);
+      expect(denied.denied, isTrue);
+      expect(denied.reasons, <String>['Suspended users cannot access this.']);
+    });
   });
 
   group('AccessGate', () {
@@ -311,6 +386,23 @@ void main() {
       );
 
       expect(find.text('Advanced reports'), findsOneWidget);
+    });
+
+    testWidgets('supports composed policies', (tester) async {
+      await tester.pumpWidget(
+        _TestHost(
+          child: AccessGate(
+            accessContext: AccessContext(roles: <String>{'admin'}),
+            policy: AccessPolicy.anyOf(<AccessPolicy>[
+              AccessPolicy.role('admin'),
+              AccessPolicy.permission('reports.view'),
+            ]),
+            child: const Text('Composed access'),
+          ),
+        ),
+      );
+
+      expect(find.text('Composed access'), findsOneWidget);
     });
   });
 
