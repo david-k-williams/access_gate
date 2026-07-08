@@ -8,6 +8,7 @@ library;
 export 'src/access_context.dart';
 export 'src/access_controller.dart';
 export 'src/access_decision.dart';
+export 'src/access_key.dart';
 export 'src/access_policy.dart';
 export 'src/widgets/access_builder.dart';
 export 'src/widgets/access_gate.dart';

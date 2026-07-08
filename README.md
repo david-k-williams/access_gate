@@ -97,6 +97,49 @@ AccessGate.when(
 );
 ```
 
+## Typed keys
+
+The core API stores provider-facing strings, but apps can define typed keys with
+enums by implementing the category marker interfaces.
+
+```dart
+enum AppFeature implements AccessFeature {
+  advancedReports('advanced_reports');
+
+  const AppFeature(this.accessKey);
+
+  @override
+  final String accessKey;
+}
+
+enum AppRole implements AccessRole {
+  admin('admin');
+
+  const AppRole(this.accessKey);
+
+  @override
+  final String accessKey;
+}
+```
+
+Use `fromKeys` and `*Key` constructors when you want compile-time key names in
+app code:
+
+```dart
+final context = AccessContext.fromKeys(
+  enabledFeatures: {AppFeature.advancedReports},
+  roles: {AppRole.admin},
+);
+
+AccessGate.featureKey(
+  feature: AppFeature.advancedReports,
+  child: const AdvancedReportsButton(),
+);
+```
+
+If an enum's case name already matches the provider key, the `AccessEnumKey`
+extension exposes `myEnumValue.accessKey` as a convenience.
+
 ## Denied access
 
 By default, denied gates render `accessHidden`, which creates only an element and

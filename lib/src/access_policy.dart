@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'access_context.dart';
 import 'access_decision.dart';
+import 'access_key.dart';
 
 /// Custom access check for app-specific ABAC logic.
 typedef AccessPredicate = bool Function(AccessContext context);
@@ -67,9 +68,43 @@ class AccessPolicy {
     predicateReason: 'Custom access rule rejected access.',
   );
 
+  /// Creates a policy from typed access keys.
+  factory AccessPolicy.fromKeys({
+    Set<AccessFeature> allFeatures = const <AccessFeature>{},
+    Set<AccessFeature> anyFeatures = const <AccessFeature>{},
+    Map<AccessFeature, Object?> featureValues =
+        const <AccessFeature, Object?>{},
+    Set<AccessRole> allRoles = const <AccessRole>{},
+    Set<AccessRole> anyRoles = const <AccessRole>{},
+    Set<AccessPermission> allPermissions = const <AccessPermission>{},
+    Set<AccessPermission> anyPermissions = const <AccessPermission>{},
+    Map<AccessAttribute, Object?> attributes =
+        const <AccessAttribute, Object?>{},
+    AccessPredicate? predicate,
+    String predicateReason = 'Custom access rule rejected access.',
+  }) {
+    return AccessPolicy(
+      allFeatures: accessKeySet(allFeatures),
+      anyFeatures: accessKeySet(anyFeatures),
+      featureValues: accessKeyMap(featureValues),
+      allRoles: accessKeySet(allRoles),
+      anyRoles: accessKeySet(anyRoles),
+      allPermissions: accessKeySet(allPermissions),
+      anyPermissions: accessKeySet(anyPermissions),
+      attributes: accessKeyMap(attributes),
+      predicate: predicate,
+      predicateReason: predicateReason,
+    );
+  }
+
   /// Creates a policy that requires a single enabled feature.
   factory AccessPolicy.feature(String feature) {
     return AccessPolicy(allFeatures: <String>{feature});
+  }
+
+  /// Creates a policy that requires a single enabled typed feature key.
+  factory AccessPolicy.featureKey(AccessFeature feature) {
+    return AccessPolicy.feature(feature.accessKey);
   }
 
   /// Creates a policy that requires a single role.
@@ -77,9 +112,19 @@ class AccessPolicy {
     return AccessPolicy(allRoles: <String>{role});
   }
 
+  /// Creates a policy that requires a single typed role key.
+  factory AccessPolicy.roleKey(AccessRole role) {
+    return AccessPolicy.role(role.accessKey);
+  }
+
   /// Creates a policy that requires a single permission.
   factory AccessPolicy.permission(String permission) {
     return AccessPolicy(allPermissions: <String>{permission});
+  }
+
+  /// Creates a policy that requires a single typed permission key.
+  factory AccessPolicy.permissionKey(AccessPermission permission) {
+    return AccessPolicy.permission(permission.accessKey);
   }
 
   /// Features that must all be enabled.

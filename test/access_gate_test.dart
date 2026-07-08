@@ -36,6 +36,25 @@ void main() {
       expect(first, second);
       expect(first.hashCode, second.hashCode);
     });
+
+    test('creates context from typed keys', () {
+      final context = AccessContext.fromKeys(
+        enabledFeatures: <TestFeature>{TestFeature.advancedReports},
+        featureValues: <TestFeature, Object?>{
+          TestFeature.checkoutVariant: 'variant_b',
+        },
+        roles: <TestRole>{TestRole.admin},
+        permissions: <TestPermission>{TestPermission.reportsView},
+        attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+      );
+
+      expect(context.hasFeature('advanced_reports'), isTrue);
+      expect(context.hasFeatureKey(TestFeature.advancedReports), isTrue);
+      expect(context.featureValueKey(TestFeature.checkoutVariant), 'variant_b');
+      expect(context.hasRoleKey(TestRole.admin), isTrue);
+      expect(context.hasPermissionKey(TestPermission.reportsView), isTrue);
+      expect(context.attributeKey(TestAttribute.plan), 'pro');
+    });
   });
 
   group('AccessPolicy', () {
@@ -116,6 +135,40 @@ void main() {
       expect(decision.allowed, isTrue);
       expect(() => policy.allFeatures.add('billing'), throwsUnsupportedError);
       expect(() => policy.attributes['region'] = 'us', throwsUnsupportedError);
+    });
+
+    test('evaluates policies built from typed keys', () {
+      final context = AccessContext.fromKeys(
+        enabledFeatures: <TestFeature>{TestFeature.advancedReports},
+        roles: <TestRole>{TestRole.admin},
+        permissions: <TestPermission>{TestPermission.reportsView},
+        attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+      );
+
+      final decision = AccessPolicy.fromKeys(
+        allFeatures: <TestFeature>{TestFeature.advancedReports},
+        allRoles: <TestRole>{TestRole.admin},
+        allPermissions: <TestPermission>{TestPermission.reportsView},
+        attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+      ).evaluate(context);
+
+      expect(decision.allowed, isTrue);
+      expect(
+        AccessPolicy.featureKey(
+          TestFeature.advancedReports,
+        ).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.roleKey(TestRole.admin).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.permissionKey(
+          TestPermission.reportsView,
+        ).evaluate(context).allowed,
+        isTrue,
+      );
     });
 
     test('supports a custom ABAC predicate', () {
@@ -237,6 +290,28 @@ void main() {
 
       expect(find.text('Admin tools'), findsOneWidget);
     });
+
+    testWidgets('supports typed key constructors', (tester) async {
+      await tester.pumpWidget(
+        _TestHost(
+          child: AccessGate.whenKeys(
+            accessContext: AccessContext.fromKeys(
+              enabledFeatures: <TestFeature>{TestFeature.advancedReports},
+              roles: <TestRole>{TestRole.admin},
+              permissions: <TestPermission>{TestPermission.reportsView},
+              attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+            ),
+            allFeatures: <TestFeature>{TestFeature.advancedReports},
+            allRoles: <TestRole>{TestRole.admin},
+            allPermissions: <TestPermission>{TestPermission.reportsView},
+            attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+            child: const Text('Advanced reports'),
+          ),
+        ),
+      );
+
+      expect(find.text('Advanced reports'), findsOneWidget);
+    });
   });
 
   group('AccessBuilder', () {
@@ -305,6 +380,10 @@ void main() {
     expect(element, isA<Element>());
     expect(element, isNot(isA<RenderObjectElement>()));
   });
+
+  test('AccessEnumKey exposes the enum name as a convenience key', () {
+    expect(TestDefaultNamedFeature.dashboard.accessKey, 'dashboard');
+  });
 }
 
 class _TestHost extends StatelessWidget {
@@ -317,3 +396,42 @@ class _TestHost extends StatelessWidget {
     return Directionality(textDirection: TextDirection.ltr, child: child);
   }
 }
+
+enum TestFeature implements AccessFeature {
+  advancedReports('advanced_reports'),
+  checkoutVariant('checkout_variant');
+
+  const TestFeature(this.accessKey);
+
+  @override
+  final String accessKey;
+}
+
+enum TestRole implements AccessRole {
+  admin('admin');
+
+  const TestRole(this.accessKey);
+
+  @override
+  final String accessKey;
+}
+
+enum TestPermission implements AccessPermission {
+  reportsView('reports.view');
+
+  const TestPermission(this.accessKey);
+
+  @override
+  final String accessKey;
+}
+
+enum TestAttribute implements AccessAttribute {
+  plan('plan');
+
+  const TestAttribute(this.accessKey);
+
+  @override
+  final String accessKey;
+}
+
+enum TestDefaultNamedFeature { dashboard }

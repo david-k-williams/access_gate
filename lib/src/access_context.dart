@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'access_key.dart';
+
 const Object _unset = Object();
 
 /// Access facts for the current user, session, or request.
@@ -32,6 +34,27 @@ class AccessContext {
       permissions = const <String>{},
       attributes = const <String, Object?>{};
 
+  /// Creates an access context from typed access keys.
+  factory AccessContext.fromKeys({
+    String? userId,
+    Set<AccessFeature> enabledFeatures = const <AccessFeature>{},
+    Map<AccessFeature, Object?> featureValues =
+        const <AccessFeature, Object?>{},
+    Set<AccessRole> roles = const <AccessRole>{},
+    Set<AccessPermission> permissions = const <AccessPermission>{},
+    Map<AccessAttribute, Object?> attributes =
+        const <AccessAttribute, Object?>{},
+  }) {
+    return AccessContext(
+      userId: userId,
+      enabledFeatures: accessKeySet(enabledFeatures),
+      featureValues: accessKeyMap(featureValues),
+      roles: accessKeySet(roles),
+      permissions: accessKeySet(permissions),
+      attributes: accessKeyMap(attributes),
+    );
+  }
+
   /// Optional stable user identifier.
   final String? userId;
 
@@ -61,6 +84,9 @@ class AccessContext {
     return featureValues[feature] == true;
   }
 
+  /// Returns `true` when [feature] is enabled.
+  bool hasFeatureKey(AccessFeature feature) => hasFeature(feature.accessKey);
+
   /// Returns the configured value for [feature].
   Object? featureValue(String feature) {
     if (featureValues.containsKey(feature)) {
@@ -72,14 +98,32 @@ class AccessContext {
     return null;
   }
 
+  /// Returns the configured value for [feature].
+  Object? featureValueKey(AccessFeature feature) {
+    return featureValue(feature.accessKey);
+  }
+
   /// Returns `true` when [role] is present.
   bool hasRole(String role) => roles.contains(role);
+
+  /// Returns `true` when [role] is present.
+  bool hasRoleKey(AccessRole role) => hasRole(role.accessKey);
 
   /// Returns `true` when [permission] is present.
   bool hasPermission(String permission) => permissions.contains(permission);
 
+  /// Returns `true` when [permission] is present.
+  bool hasPermissionKey(AccessPermission permission) {
+    return hasPermission(permission.accessKey);
+  }
+
   /// Returns the attribute value for [name].
   Object? attribute(String name) => attributes[name];
+
+  /// Returns the attribute value for [attribute].
+  Object? attributeKey(AccessAttribute attribute) {
+    return this.attribute(attribute.accessKey);
+  }
 
   /// Creates a copy with selected fields replaced.
   AccessContext copyWith({

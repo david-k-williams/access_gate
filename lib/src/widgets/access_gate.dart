@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../access_context.dart';
 import '../access_controller.dart';
 import '../access_decision.dart';
+import '../access_key.dart';
 import '../access_policy.dart';
 import 'access_hidden.dart';
 import 'access_scope.dart';
@@ -73,6 +74,47 @@ class AccessGate extends StatelessWidget {
          'Provide either controller or accessContext, not both.',
        );
 
+  /// Creates an access gate from inline typed key requirements.
+  AccessGate.whenKeys({
+    super.key,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    Set<AccessFeature> allFeatures = const <AccessFeature>{},
+    Set<AccessFeature> anyFeatures = const <AccessFeature>{},
+    Map<AccessFeature, Object?> featureValues =
+        const <AccessFeature, Object?>{},
+    Set<AccessRole> allRoles = const <AccessRole>{},
+    Set<AccessRole> anyRoles = const <AccessRole>{},
+    Set<AccessPermission> allPermissions = const <AccessPermission>{},
+    Set<AccessPermission> anyPermissions = const <AccessPermission>{},
+    Map<AccessAttribute, Object?> attributes =
+        const <AccessAttribute, Object?>{},
+    AccessPredicate? predicate,
+    String predicateReason = 'Custom access rule rejected access.',
+  }) : policy = AccessPolicy.fromKeys(
+         allFeatures: allFeatures,
+         anyFeatures: anyFeatures,
+         featureValues: featureValues,
+         allRoles: allRoles,
+         anyRoles: anyRoles,
+         allPermissions: allPermissions,
+         anyPermissions: anyPermissions,
+         attributes: attributes,
+         predicate: predicate,
+         predicateReason: predicateReason,
+       ),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
   /// Creates an access gate that requires [feature].
   AccessGate.feature({
     super.key,
@@ -83,6 +125,25 @@ class AccessGate extends StatelessWidget {
     this.controller,
     this.accessContext,
   }) : policy = AccessPolicy.feature(feature),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires typed [feature].
+  AccessGate.featureKey({
+    super.key,
+    required AccessFeature feature,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+  }) : policy = AccessPolicy.featureKey(feature),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
@@ -111,6 +172,25 @@ class AccessGate extends StatelessWidget {
          'Provide either controller or accessContext, not both.',
        );
 
+  /// Creates an access gate that requires typed [role].
+  AccessGate.roleKey({
+    super.key,
+    required AccessRole role,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+  }) : policy = AccessPolicy.roleKey(role),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
   /// Creates an access gate that requires [permission].
   AccessGate.permission({
     super.key,
@@ -121,6 +201,25 @@ class AccessGate extends StatelessWidget {
     this.controller,
     this.accessContext,
   }) : policy = AccessPolicy.permission(permission),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires typed [permission].
+  AccessGate.permissionKey({
+    super.key,
+    required AccessPermission permission,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+  }) : policy = AccessPolicy.permissionKey(permission),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
