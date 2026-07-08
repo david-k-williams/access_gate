@@ -233,8 +233,15 @@ Custom predicate functions are runtime-only and cannot be serialized.
 ## Agent-friendly usage
 
 Coding agents integrating this package into Flutter apps should read
-`doc/using-access-gate.md`. A repo-local Codex skill for using the package is
-available at `skills/access-gate/`.
+`doc/using-access-gate.md`.
+
+The shared Agent Skills-compatible skill lives at `skills/access-gate/`. Codex
+can use it from that location. Claude Code users can copy that folder to
+`~/.claude/skills/access-gate/`, or use the project wrapper at
+`.claude/skills/access-gate/` when working from this repository.
+
+Repository-maintenance guidance is available in `AGENTS.md` for Codex and
+`CLAUDE.md` for Claude Code.
 
 ## Important security note
 

@@ -2,7 +2,7 @@
 
 * Changed `AccessHidden` to render as a zero-size widget so denied gates remain safe inside multi-child layouts.
 * Added render-order regression coverage for denied gates in multi-child layouts and for the example app.
-* Added consumer-oriented usage documentation and a repo-local Codex skill.
+* Added consumer-oriented usage documentation and Agent Skills-compatible Codex and Claude Code guidance.
 
 ## 0.0.2
 

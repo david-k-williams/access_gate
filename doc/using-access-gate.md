@@ -151,6 +151,16 @@ expect(find.text('Reports'), findsOneWidget);
 Also test denied states when the fallback text, route branch, or recovery action
 matters to users.
 
+## Agent Integration
+
+The repo includes an Agent Skills-compatible integration skill at
+`skills/access-gate/`. Use it from Codex directly, or copy it into
+`~/.claude/skills/access-gate/` for Claude Code.
+
+When working from this repository in Claude Code, the project wrapper at
+`.claude/skills/access-gate/` points Claude to the same shared skill. Keep the
+shared skill as the canonical source when updating examples or workflow rules.
+
 ## Security Boundary
 
 `access_gate` controls client-side visibility. It is not a replacement for
