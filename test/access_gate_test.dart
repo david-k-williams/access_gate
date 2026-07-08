@@ -68,6 +68,62 @@ void main() {
 
       expect(AccessContext.fromJson(context.toJson()), context);
     });
+
+    test('merges contexts with later map values taking precedence', () {
+      final base = AccessContext(
+        userId: 'user-1',
+        enabledFeatures: <String>{'advanced_reports'},
+        featureValues: <String, Object?>{
+          'checkout': false,
+          'reports_variant': 'a',
+        },
+        roles: <String>{'analyst'},
+        permissions: <String>{'reports.view'},
+        attributes: <String, Object?>{'plan': 'free', 'region': 'us'},
+      );
+      final override = AccessContext(
+        enabledFeatures: <String>{'billing'},
+        featureValues: <String, Object?>{'checkout': true},
+        roles: <String>{'admin'},
+        permissions: <String>{'reports.manage'},
+        attributes: <String, Object?>{'plan': 'pro'},
+      );
+
+      final merged = base.merge(override);
+
+      expect(merged.userId, 'user-1');
+      expect(merged.enabledFeatures, <String>{'advanced_reports', 'billing'});
+      expect(merged.featureValues, <String, Object?>{
+        'checkout': true,
+        'reports_variant': 'a',
+      });
+      expect(merged.roles, <String>{'analyst', 'admin'});
+      expect(merged.permissions, <String>{'reports.view', 'reports.manage'});
+      expect(merged.attributes, <String, Object?>{
+        'plan': 'pro',
+        'region': 'us',
+      });
+    });
+
+    test('merge uses the later user id when present', () {
+      final merged = AccessContext(
+        userId: 'user-1',
+      ).merge(AccessContext(userId: 'user-2'));
+
+      expect(merged.userId, 'user-2');
+    });
+
+    test('combines contexts in order and supports empty input', () {
+      final combined = AccessContext.combine(<AccessContext>[
+        AccessContext(enabledFeatures: <String>{'advanced_reports'}),
+        AccessContext(attributes: <String, Object?>{'plan': 'free'}),
+        AccessContext(attributes: <String, Object?>{'plan': 'pro'}),
+      ]);
+
+      expect(combined.hasFeature('advanced_reports'), isTrue);
+      expect(combined.attribute('plan'), 'pro');
+      expect(AccessContext.combine(<AccessContext>[]), AccessContext.empty());
+    });
   });
 
   group('AccessPolicy', () {
@@ -134,6 +190,95 @@ void main() {
       ).evaluate(context);
 
       expect(decision.allowed, isTrue);
+    });
+
+    test('supports convenience constructors for any-of and exact matches', () {
+      final context = AccessContext(
+        enabledFeatures: <String>{'billing_v2'},
+        featureValues: <String, Object?>{'reports_variant': 'b'},
+        roles: <String>{'owner'},
+        permissions: <String>{'invoices.read'},
+        attributes: <String, Object?>{'plan': 'pro'},
+      );
+
+      expect(
+        AccessPolicy.anyFeature(<String>{
+          'billing_v1',
+          'billing_v2',
+        }).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.featureValue(
+          'reports_variant',
+          'b',
+        ).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.anyRole(<String>{
+          'admin',
+          'owner',
+        }).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.anyPermission(<String>{
+          'invoices.write',
+          'invoices.read',
+        }).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.attribute('plan', 'pro').evaluate(context).allowed,
+        isTrue,
+      );
+    });
+
+    test('supports typed convenience constructors', () {
+      final context = AccessContext.fromKeys(
+        enabledFeatures: <TestFeature>{TestFeature.advancedReports},
+        featureValues: <TestFeature, Object?>{
+          TestFeature.checkoutVariant: 'variant_b',
+        },
+        roles: <TestRole>{TestRole.admin},
+        permissions: <TestPermission>{TestPermission.reportsView},
+        attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+      );
+
+      expect(
+        AccessPolicy.anyFeatureKey(<TestFeature>{
+          TestFeature.checkoutVariant,
+          TestFeature.advancedReports,
+        }).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.featureValueKey(
+          TestFeature.checkoutVariant,
+          'variant_b',
+        ).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.anyRoleKey(<TestRole>{
+          TestRole.admin,
+        }).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.anyPermissionKey(<TestPermission>{
+          TestPermission.reportsView,
+        }).evaluate(context).allowed,
+        isTrue,
+      );
+      expect(
+        AccessPolicy.attributeKey(
+          TestAttribute.plan,
+          'pro',
+        ).evaluate(context).allowed,
+        isTrue,
+      );
     });
 
     test('defensively copies and exposes immutable requirements', () {
@@ -336,6 +481,46 @@ void main() {
       expect(roundTripped.toJson(), policy.toJson());
     });
 
+    test('round-trips labels through JSON-compatible data', () {
+      final policy = AccessPolicy.allOf(<AccessPolicy>[
+        AccessPolicy.permission('reports.view', label: 'Reports permission'),
+      ], label: 'Reports page');
+      final roundTripped = AccessPolicy.fromJson(policy.toJson());
+
+      expect(roundTripped.toJson(), policy.toJson());
+      expect(
+        roundTripped.evaluate(AccessContext()).denialReasons.single.policyLabel,
+        'Reports permission',
+      );
+    });
+
+    test('adds policy labels to generated denial reasons', () {
+      final decision = AccessPolicy.permission(
+        'reports.view',
+        label: 'Reports permission',
+      ).evaluate(AccessContext());
+
+      expect(decision.reasons, <String>['Missing permission: reports.view.']);
+      expect(decision.denialReasons.single.policyLabel, 'Reports permission');
+    });
+
+    test('describes policies for diagnostics', () {
+      expect(
+        AccessPolicy.attribute(
+          'plan',
+          'pro',
+          label: 'Plan requirement',
+        ).toString(),
+        contains('Plan requirement'),
+      );
+      expect(
+        AccessPolicy.anyOf(<AccessPolicy>[
+          AccessPolicy.role('admin'),
+        ], label: 'Admin path').toString(),
+        contains('Admin path'),
+      );
+    });
+
     test('does not serialize predicate policies', () {
       final policy = AccessPolicy(predicate: (context) => true);
 
@@ -457,6 +642,114 @@ void main() {
       );
 
       expect(find.text('Advanced reports'), findsOneWidget);
+    });
+
+    testWidgets('supports convenience constructors', (tester) async {
+      final context = AccessContext(
+        enabledFeatures: <String>{'billing_v2'},
+        featureValues: <String, Object?>{'reports_variant': 'b'},
+        roles: <String>{'owner'},
+        permissions: <String>{'invoices.read'},
+        attributes: <String, Object?>{'plan': 'pro'},
+      );
+
+      await tester.pumpWidget(
+        _TestHost(
+          child: Column(
+            textDirection: TextDirection.ltr,
+            children: <Widget>[
+              AccessGate.anyFeature(
+                accessContext: context,
+                features: <String>{'billing_v1', 'billing_v2'},
+                child: const Text('Any feature'),
+              ),
+              AccessGate.featureValue(
+                accessContext: context,
+                feature: 'reports_variant',
+                value: 'b',
+                child: const Text('Feature value'),
+              ),
+              AccessGate.anyRole(
+                accessContext: context,
+                roles: <String>{'admin', 'owner'},
+                child: const Text('Any role'),
+              ),
+              AccessGate.anyPermission(
+                accessContext: context,
+                permissions: <String>{'invoices.write', 'invoices.read'},
+                child: const Text('Any permission'),
+              ),
+              AccessGate.attribute(
+                accessContext: context,
+                attribute: 'plan',
+                value: 'pro',
+                child: const Text('Attribute match'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('Any feature'), findsOneWidget);
+      expect(find.text('Feature value'), findsOneWidget);
+      expect(find.text('Any role'), findsOneWidget);
+      expect(find.text('Any permission'), findsOneWidget);
+      expect(find.text('Attribute match'), findsOneWidget);
+    });
+
+    testWidgets('supports typed convenience constructors', (tester) async {
+      final context = AccessContext.fromKeys(
+        enabledFeatures: <TestFeature>{TestFeature.advancedReports},
+        featureValues: <TestFeature, Object?>{
+          TestFeature.checkoutVariant: 'variant_b',
+        },
+        roles: <TestRole>{TestRole.admin},
+        permissions: <TestPermission>{TestPermission.reportsView},
+        attributes: <TestAttribute, Object?>{TestAttribute.plan: 'pro'},
+      );
+
+      await tester.pumpWidget(
+        _TestHost(
+          child: Column(
+            textDirection: TextDirection.ltr,
+            children: <Widget>[
+              AccessGate.anyFeatureKey(
+                accessContext: context,
+                features: <TestFeature>{TestFeature.advancedReports},
+                child: const Text('Typed any feature'),
+              ),
+              AccessGate.featureValueKey(
+                accessContext: context,
+                feature: TestFeature.checkoutVariant,
+                value: 'variant_b',
+                child: const Text('Typed feature value'),
+              ),
+              AccessGate.anyRoleKey(
+                accessContext: context,
+                roles: <TestRole>{TestRole.admin},
+                child: const Text('Typed any role'),
+              ),
+              AccessGate.anyPermissionKey(
+                accessContext: context,
+                permissions: <TestPermission>{TestPermission.reportsView},
+                child: const Text('Typed any permission'),
+              ),
+              AccessGate.attributeKey(
+                accessContext: context,
+                attribute: TestAttribute.plan,
+                value: 'pro',
+                child: const Text('Typed attribute match'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('Typed any feature'), findsOneWidget);
+      expect(find.text('Typed feature value'), findsOneWidget);
+      expect(find.text('Typed any role'), findsOneWidget);
+      expect(find.text('Typed any permission'), findsOneWidget);
+      expect(find.text('Typed attribute match'), findsOneWidget);
     });
 
     testWidgets('supports composed policies', (tester) async {
@@ -702,6 +995,33 @@ void main() {
       expect(
         decision.denialReasons.single.type,
         AccessDenialReasonType.missingPermission,
+      );
+    });
+
+    test('supports value equality, hashCode, and diagnostics', () {
+      final first = AccessDecision.denyWithReasons(<AccessDenialReason>[
+        AccessDenialReason(
+          type: AccessDenialReasonType.missingPermission,
+          key: 'reports.view',
+          policyLabel: 'Reports permission',
+          message: 'Missing permission: reports.view.',
+        ),
+      ]);
+      final second = AccessDecision.denyWithReasons(<AccessDenialReason>[
+        AccessDenialReason(
+          type: AccessDenialReasonType.missingPermission,
+          key: 'reports.view',
+          policyLabel: 'Reports permission',
+          message: 'Missing permission: reports.view.',
+        ),
+      ]);
+
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+      expect(first.toString(), contains('Missing permission: reports.view.'));
+      expect(
+        first.denialReasons.single.toString(),
+        contains('Reports permission'),
       );
     });
   });

@@ -60,4 +60,26 @@ class AccessDecision {
 
   /// Whether access was denied.
   bool get denied => !allowed;
+
+  @override
+  bool operator ==(Object other) {
+    return other is AccessDecision &&
+        other.allowed == allowed &&
+        listEquals(other.reasons, reasons) &&
+        listEquals(other.denialReasons, denialReasons);
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      allowed,
+      Object.hashAll(reasons),
+      Object.hashAll(denialReasons),
+    );
+  }
+
+  @override
+  String toString() {
+    return 'AccessDecision(allowed: $allowed, reasons: $reasons)';
+  }
 }

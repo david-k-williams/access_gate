@@ -1,6 +1,6 @@
 name: access_gate
 description: "Hide Flutter widgets behind feature flags, roles, permissions, and attribute-based access policies."
-version: 0.0.3
+version: 0.0.4
 repository: https://github.com/david-k-williams/access_gate
 issue_tracker: https://github.com/david-k-williams/access_gate/issues
 topics:

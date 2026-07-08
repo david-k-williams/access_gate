@@ -53,6 +53,7 @@ class AccessGate extends StatelessWidget {
     Map<String, Object?> attributes = const <String, Object?>{},
     AccessPredicate? predicate,
     String predicateReason = 'Custom access rule rejected access.',
+    String? label,
   }) : policy = AccessPolicy(
          allFeatures: allFeatures,
          anyFeatures: anyFeatures,
@@ -64,6 +65,7 @@ class AccessGate extends StatelessWidget {
          attributes: attributes,
          predicate: predicate,
          predicateReason: predicateReason,
+         label: label,
        ),
        assert(
          fallback == null || fallbackBuilder == null,
@@ -94,6 +96,7 @@ class AccessGate extends StatelessWidget {
         const <AccessAttribute, Object?>{},
     AccessPredicate? predicate,
     String predicateReason = 'Custom access rule rejected access.',
+    String? label,
   }) : policy = AccessPolicy.fromKeys(
          allFeatures: allFeatures,
          anyFeatures: anyFeatures,
@@ -105,6 +108,7 @@ class AccessGate extends StatelessWidget {
          attributes: attributes,
          predicate: predicate,
          predicateReason: predicateReason,
+         label: label,
        ),
        assert(
          fallback == null || fallbackBuilder == null,
@@ -124,7 +128,8 @@ class AccessGate extends StatelessWidget {
     this.fallbackBuilder,
     this.controller,
     this.accessContext,
-  }) : policy = AccessPolicy.feature(feature),
+    String? label,
+  }) : policy = AccessPolicy.feature(feature, label: label),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
@@ -143,7 +148,90 @@ class AccessGate extends StatelessWidget {
     this.fallbackBuilder,
     this.controller,
     this.accessContext,
-  }) : policy = AccessPolicy.featureKey(feature),
+    String? label,
+  }) : policy = AccessPolicy.featureKey(feature, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires at least one [features] item.
+  AccessGate.anyFeature({
+    super.key,
+    required Iterable<String> features,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.anyFeature(features, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires at least one typed [features] item.
+  AccessGate.anyFeatureKey({
+    super.key,
+    required Iterable<AccessFeature> features,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.anyFeatureKey(features, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires [feature] to exactly match [value].
+  AccessGate.featureValue({
+    super.key,
+    required String feature,
+    required Object? value,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.featureValue(feature, value, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires typed [feature] to match [value].
+  AccessGate.featureValueKey({
+    super.key,
+    required AccessFeature feature,
+    required Object? value,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.featureValueKey(feature, value, label: label),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
@@ -162,7 +250,8 @@ class AccessGate extends StatelessWidget {
     this.fallbackBuilder,
     this.controller,
     this.accessContext,
-  }) : policy = AccessPolicy.role(role),
+    String? label,
+  }) : policy = AccessPolicy.role(role, label: label),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
@@ -181,7 +270,48 @@ class AccessGate extends StatelessWidget {
     this.fallbackBuilder,
     this.controller,
     this.accessContext,
-  }) : policy = AccessPolicy.roleKey(role),
+    String? label,
+  }) : policy = AccessPolicy.roleKey(role, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires at least one [roles] item.
+  AccessGate.anyRole({
+    super.key,
+    required Iterable<String> roles,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.anyRole(roles, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires at least one typed [roles] item.
+  AccessGate.anyRoleKey({
+    super.key,
+    required Iterable<AccessRole> roles,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.anyRoleKey(roles, label: label),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
@@ -200,7 +330,8 @@ class AccessGate extends StatelessWidget {
     this.fallbackBuilder,
     this.controller,
     this.accessContext,
-  }) : policy = AccessPolicy.permission(permission),
+    String? label,
+  }) : policy = AccessPolicy.permission(permission, label: label),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',
@@ -219,7 +350,90 @@ class AccessGate extends StatelessWidget {
     this.fallbackBuilder,
     this.controller,
     this.accessContext,
-  }) : policy = AccessPolicy.permissionKey(permission),
+    String? label,
+  }) : policy = AccessPolicy.permissionKey(permission, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires at least one [permissions] item.
+  AccessGate.anyPermission({
+    super.key,
+    required Iterable<String> permissions,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.anyPermission(permissions, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires at least one typed [permissions] item.
+  AccessGate.anyPermissionKey({
+    super.key,
+    required Iterable<AccessPermission> permissions,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.anyPermissionKey(permissions, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires [attribute] to exactly match [value].
+  AccessGate.attribute({
+    super.key,
+    required String attribute,
+    required Object? value,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.attribute(attribute, value, label: label),
+       assert(
+         fallback == null || fallbackBuilder == null,
+         'Provide either fallback or fallbackBuilder, not both.',
+       ),
+       assert(
+         controller == null || accessContext == null,
+         'Provide either controller or accessContext, not both.',
+       );
+
+  /// Creates an access gate that requires typed [attribute] to match [value].
+  AccessGate.attributeKey({
+    super.key,
+    required AccessAttribute attribute,
+    required Object? value,
+    required this.child,
+    this.fallback,
+    this.fallbackBuilder,
+    this.controller,
+    this.accessContext,
+    String? label,
+  }) : policy = AccessPolicy.attributeKey(attribute, value, label: label),
        assert(
          fallback == null || fallbackBuilder == null,
          'Provide either fallback or fallbackBuilder, not both.',

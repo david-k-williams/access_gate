@@ -47,6 +47,7 @@ class AccessDenialReason {
     required this.type,
     required this.message,
     this.key,
+    this.policyLabel,
     this.expected,
     this.actual,
     Set<String> candidates = const <String>{},
@@ -69,6 +70,9 @@ class AccessDenialReason {
   /// Primary key involved in the failure, such as a role or permission.
   final String? key;
 
+  /// Optional label of the policy that produced this reason.
+  final String? policyLabel;
+
   /// Expected value for mismatch failures.
   final Object? expected;
 
@@ -77,4 +81,43 @@ class AccessDenialReason {
 
   /// Candidate keys involved in any-of failures.
   final Set<String> candidates;
+
+  @override
+  bool operator ==(Object other) {
+    return other is AccessDenialReason &&
+        other.type == type &&
+        other.message == message &&
+        other.key == key &&
+        other.policyLabel == policyLabel &&
+        other.expected == expected &&
+        other.actual == actual &&
+        setEquals(other.candidates, candidates);
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      type,
+      message,
+      key,
+      policyLabel,
+      expected,
+      actual,
+      Object.hashAllUnordered(candidates),
+    );
+  }
+
+  @override
+  String toString() {
+    final values = <String>[
+      'type: $type',
+      if (policyLabel != null) 'policyLabel: $policyLabel',
+      if (key != null) 'key: $key',
+      if (expected != null) 'expected: $expected',
+      if (actual != null) 'actual: $actual',
+      if (candidates.isNotEmpty) 'candidates: $candidates',
+      'message: $message',
+    ];
+    return 'AccessDenialReason(${values.join(', ')})';
+  }
 }

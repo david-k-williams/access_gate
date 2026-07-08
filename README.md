@@ -15,6 +15,9 @@ state, or a backend policy response, then expose those facts through
 - Permission gates for fine-grained access checks.
 - ABAC gates with exact attributes and custom predicates.
 - Policy composition with all-of, any-of, and not rules.
+- Context composition for combining auth, flag, account, and local facts.
+- Convenience constructors for any-of and exact value checks.
+- Optional policy labels for structured denial diagnostics.
 - Structured denial reasons for custom fallback UI.
 - `AccessGuard` for page-level access decisions.
 - JSON helpers for access contexts and serializable policies.
@@ -46,6 +49,18 @@ AccessScope(
 );
 ```
 
+When access facts come from multiple places, combine them into one context:
+
+```dart
+final context = AccessContext.combine([
+  AccessContext(enabledFeatures: {'advanced_reports'}),
+  AccessContext(permissions: {'reports.view'}),
+  AccessContext(attributes: {'plan': 'pro'}),
+]);
+
+accessController.update(context);
+```
+
 ## Basic usage
 
 Require one feature flag:
@@ -73,6 +88,31 @@ Require a permission:
 AccessGate.permission(
   permission: 'reports.view',
   child: const ReportList(),
+);
+```
+
+Require one of several roles:
+
+```dart
+AccessGate.anyRole(
+  roles: {'admin', 'analyst'},
+  child: const AnalystDashboard(),
+);
+```
+
+Require an exact feature value or attribute:
+
+```dart
+AccessGate.featureValue(
+  feature: 'checkout_variant',
+  value: 'variant_b',
+  child: const VariantCheckout(),
+);
+
+AccessGate.attribute(
+  attribute: 'plan',
+  value: 'pro',
+  child: const ProReports(),
 );
 ```
 
@@ -107,19 +147,24 @@ Compose policies when access can be granted through multiple paths, or when an
 allow rule needs an explicit exclusion.
 
 ```dart
-final policy = AccessPolicy.allOf([
-  AccessPolicy.anyOf([
-    AccessPolicy.role('admin'),
-    AccessPolicy(
-      allPermissions: {'reports.view'},
-      attributes: {'plan': 'pro'},
+final policy = AccessPolicy.allOf(
+  [
+    AccessPolicy.anyOf([
+      AccessPolicy.role('admin', label: 'Admin role'),
+      AccessPolicy(
+        allPermissions: {'reports.view'},
+        attributes: {'plan': 'pro'},
+        label: 'Pro reports permission',
+      ),
+    ]),
+    AccessPolicy.not(
+      AccessPolicy.role('suspended'),
+      reason: 'Suspended users cannot access reports.',
+      label: 'Suspension exclusion',
     ),
-  ]),
-  AccessPolicy.not(
-    AccessPolicy.role('suspended'),
-    reason: 'Suspended users cannot access reports.',
-  ),
-]);
+  ],
+  label: 'Advanced reports policy',
+);
 
 AccessGate(
   policy: policy,
@@ -215,6 +260,25 @@ AccessGate.permission(
 
 `decision.reasons` remains available as a simple list of messages.
 
+Use `AccessBuilder` when denied UI should remain visible but disabled:
+
+```dart
+AccessBuilder(
+  policy: AccessPolicy.permission(
+    'billing.manage',
+    label: 'Billing permission',
+  ),
+  builder: (context, decision) {
+    return FilledButton(
+      onPressed: decision.allowed ? openBilling : null,
+      child: Text(
+        decision.allowed ? 'Manage billing' : decision.reasons.first,
+      ),
+    );
+  },
+);
+```
+
 ## JSON helpers
 
 `AccessContext` can round-trip through JSON-compatible maps. Policies without
@@ -228,7 +292,15 @@ final contextJson = context.toJson();
 final policyJson = policy.toJson();
 ```
 
-Custom predicate functions are runtime-only and cannot be serialized.
+Policy labels are included in JSON when present. Custom predicate functions are
+runtime-only and cannot be serialized.
+
+## Loading and bootstrap
+
+An empty context denies protected UI by design. During auth, claims, remote
+config, or backend bootstrap, show your app's loading shell until the first
+real `AccessContext` is ready, then mount gated UI or call
+`accessController.update(context)`.
 
 ## Agent-friendly usage
 

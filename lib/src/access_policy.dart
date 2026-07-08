@@ -30,6 +30,7 @@ class AccessPolicy {
     required this.attributes,
     required this.predicate,
     required this.predicateReason,
+    required this.label,
     required this._mode,
     required this._policies,
     required this._notReason,
@@ -47,6 +48,7 @@ class AccessPolicy {
     Map<String, Object?> attributes = const <String, Object?>{},
     AccessPredicate? predicate,
     String predicateReason = 'Custom access rule rejected access.',
+    String? label,
   }) {
     return AccessPolicy._(
       allFeatures: Set<String>.unmodifiable(allFeatures),
@@ -59,6 +61,7 @@ class AccessPolicy {
       attributes: Map<String, Object?>.unmodifiable(attributes),
       predicate: predicate,
       predicateReason: predicateReason,
+      label: label,
       mode: _AccessPolicyMode.leaf,
       policies: const <AccessPolicy>[],
       notReason: _defaultNotReason,
@@ -79,24 +82,27 @@ class AccessPolicy {
     attributes: <String, Object?>{},
     predicate: null,
     predicateReason: 'Custom access rule rejected access.',
+    label: null,
     mode: _AccessPolicyMode.leaf,
     policies: <AccessPolicy>[],
     notReason: _defaultNotReason,
   );
 
   /// Creates a policy that requires every child policy to allow access.
-  factory AccessPolicy.allOf(Iterable<AccessPolicy> policies) {
+  factory AccessPolicy.allOf(Iterable<AccessPolicy> policies, {String? label}) {
     return AccessPolicy._composed(
       mode: _AccessPolicyMode.allOf,
       policies: policies,
+      label: label,
     );
   }
 
   /// Creates a policy that requires at least one child policy to allow access.
-  factory AccessPolicy.anyOf(Iterable<AccessPolicy> policies) {
+  factory AccessPolicy.anyOf(Iterable<AccessPolicy> policies, {String? label}) {
     return AccessPolicy._composed(
       mode: _AccessPolicyMode.anyOf,
       policies: policies,
+      label: label,
     );
   }
 
@@ -104,11 +110,13 @@ class AccessPolicy {
   factory AccessPolicy.not(
     AccessPolicy policy, {
     String reason = _defaultNotReason,
+    String? label,
   }) {
     return AccessPolicy._composed(
       mode: _AccessPolicyMode.not,
       policies: <AccessPolicy>[policy],
       notReason: reason,
+      label: label,
     );
   }
 
@@ -116,6 +124,7 @@ class AccessPolicy {
     required _AccessPolicyMode mode,
     required Iterable<AccessPolicy> policies,
     String notReason = _defaultNotReason,
+    String? label,
   }) {
     return AccessPolicy._(
       allFeatures: const <String>{},
@@ -128,6 +137,7 @@ class AccessPolicy {
       attributes: const <String, Object?>{},
       predicate: null,
       predicateReason: 'Custom access rule rejected access.',
+      label: label,
       mode: mode,
       policies: List<AccessPolicy>.unmodifiable(policies),
       notReason: notReason,
@@ -153,12 +163,20 @@ class AccessPolicy {
         predicateReason:
             json['predicateReason'] as String? ??
             'Custom access rule rejected access.',
+        label: json['label'] as String?,
       ),
-      'allOf' => AccessPolicy.allOf(_policiesFromJson(json['policies'])),
-      'anyOf' => AccessPolicy.anyOf(_policiesFromJson(json['policies'])),
+      'allOf' => AccessPolicy.allOf(
+        _policiesFromJson(json['policies']),
+        label: json['label'] as String?,
+      ),
+      'anyOf' => AccessPolicy.anyOf(
+        _policiesFromJson(json['policies']),
+        label: json['label'] as String?,
+      ),
       'not' => AccessPolicy.not(
         AccessPolicy.fromJson(_mapFromJson(json['policy'], 'policy')),
         reason: json['reason'] as String? ?? _defaultNotReason,
+        label: json['label'] as String?,
       ),
       _ => throw ArgumentError.value(type, 'type', 'Unknown policy type.'),
     };
@@ -178,6 +196,7 @@ class AccessPolicy {
         const <AccessAttribute, Object?>{},
     AccessPredicate? predicate,
     String predicateReason = 'Custom access rule rejected access.',
+    String? label,
   }) {
     return AccessPolicy(
       allFeatures: accessKeySet(allFeatures),
@@ -190,37 +209,125 @@ class AccessPolicy {
       attributes: accessKeyMap(attributes),
       predicate: predicate,
       predicateReason: predicateReason,
+      label: label,
     );
   }
 
   /// Creates a policy that requires a single enabled feature.
-  factory AccessPolicy.feature(String feature) {
-    return AccessPolicy(allFeatures: <String>{feature});
+  factory AccessPolicy.feature(String feature, {String? label}) {
+    return AccessPolicy(allFeatures: <String>{feature}, label: label);
   }
 
   /// Creates a policy that requires a single enabled typed feature key.
-  factory AccessPolicy.featureKey(AccessFeature feature) {
-    return AccessPolicy.feature(feature.accessKey);
+  factory AccessPolicy.featureKey(AccessFeature feature, {String? label}) {
+    return AccessPolicy.feature(feature.accessKey, label: label);
+  }
+
+  /// Creates a policy that requires at least one enabled feature.
+  factory AccessPolicy.anyFeature(Iterable<String> features, {String? label}) {
+    return AccessPolicy(anyFeatures: Set<String>.of(features), label: label);
+  }
+
+  /// Creates a policy that requires at least one enabled typed feature key.
+  factory AccessPolicy.anyFeatureKey(
+    Iterable<AccessFeature> features, {
+    String? label,
+  }) {
+    return AccessPolicy.anyFeature(accessKeySet(features), label: label);
+  }
+
+  /// Creates a policy that requires a feature to exactly match [value].
+  factory AccessPolicy.featureValue(
+    String feature,
+    Object? value, {
+    String? label,
+  }) {
+    return AccessPolicy(
+      featureValues: <String, Object?>{feature: value},
+      label: label,
+    );
+  }
+
+  /// Creates a policy that requires a typed feature to exactly match [value].
+  factory AccessPolicy.featureValueKey(
+    AccessFeature feature,
+    Object? value, {
+    String? label,
+  }) {
+    return AccessPolicy.featureValue(feature.accessKey, value, label: label);
   }
 
   /// Creates a policy that requires a single role.
-  factory AccessPolicy.role(String role) {
-    return AccessPolicy(allRoles: <String>{role});
+  factory AccessPolicy.role(String role, {String? label}) {
+    return AccessPolicy(allRoles: <String>{role}, label: label);
   }
 
   /// Creates a policy that requires a single typed role key.
-  factory AccessPolicy.roleKey(AccessRole role) {
-    return AccessPolicy.role(role.accessKey);
+  factory AccessPolicy.roleKey(AccessRole role, {String? label}) {
+    return AccessPolicy.role(role.accessKey, label: label);
+  }
+
+  /// Creates a policy that requires at least one role.
+  factory AccessPolicy.anyRole(Iterable<String> roles, {String? label}) {
+    return AccessPolicy(anyRoles: Set<String>.of(roles), label: label);
+  }
+
+  /// Creates a policy that requires at least one typed role key.
+  factory AccessPolicy.anyRoleKey(Iterable<AccessRole> roles, {String? label}) {
+    return AccessPolicy.anyRole(accessKeySet(roles), label: label);
   }
 
   /// Creates a policy that requires a single permission.
-  factory AccessPolicy.permission(String permission) {
-    return AccessPolicy(allPermissions: <String>{permission});
+  factory AccessPolicy.permission(String permission, {String? label}) {
+    return AccessPolicy(allPermissions: <String>{permission}, label: label);
   }
 
   /// Creates a policy that requires a single typed permission key.
-  factory AccessPolicy.permissionKey(AccessPermission permission) {
-    return AccessPolicy.permission(permission.accessKey);
+  factory AccessPolicy.permissionKey(
+    AccessPermission permission, {
+    String? label,
+  }) {
+    return AccessPolicy.permission(permission.accessKey, label: label);
+  }
+
+  /// Creates a policy that requires at least one permission.
+  factory AccessPolicy.anyPermission(
+    Iterable<String> permissions, {
+    String? label,
+  }) {
+    return AccessPolicy(
+      anyPermissions: Set<String>.of(permissions),
+      label: label,
+    );
+  }
+
+  /// Creates a policy that requires at least one typed permission key.
+  factory AccessPolicy.anyPermissionKey(
+    Iterable<AccessPermission> permissions, {
+    String? label,
+  }) {
+    return AccessPolicy.anyPermission(accessKeySet(permissions), label: label);
+  }
+
+  /// Creates a policy that requires an attribute to exactly match [value].
+  factory AccessPolicy.attribute(
+    String attribute,
+    Object? value, {
+    String? label,
+  }) {
+    return AccessPolicy(
+      attributes: <String, Object?>{attribute: value},
+      label: label,
+    );
+  }
+
+  /// Creates a policy that requires a typed attribute to exactly match [value].
+  factory AccessPolicy.attributeKey(
+    AccessAttribute attribute,
+    Object? value, {
+    String? label,
+  }) {
+    return AccessPolicy.attribute(attribute.accessKey, value, label: label);
   }
 
   /// Features that must all be enabled.
@@ -252,6 +359,9 @@ class AccessPolicy {
 
   /// Reason used when [predicate] returns `false`.
   final String predicateReason;
+
+  /// Optional human-readable label used in diagnostics and denial reasons.
+  final String? label;
 
   final _AccessPolicyMode _mode;
   final List<AccessPolicy> _policies;
@@ -286,14 +396,17 @@ class AccessPolicy {
       _AccessPolicyMode.leaf => _leafToJson(),
       _AccessPolicyMode.allOf => <String, Object?>{
         'type': 'allOf',
+        'label': label,
         'policies': _policies.map((policy) => policy.toJson()).toList(),
       },
       _AccessPolicyMode.anyOf => <String, Object?>{
         'type': 'anyOf',
+        'label': label,
         'policies': _policies.map((policy) => policy.toJson()).toList(),
       },
       _AccessPolicyMode.not => <String, Object?>{
         'type': 'not',
+        'label': label,
         'policy': _policies.single.toJson(),
         'reason': _notReason,
       },
@@ -323,6 +436,7 @@ class AccessPolicy {
       missingReason: (feature) => AccessDenialReason(
         type: AccessDenialReasonType.missingFeature,
         key: feature,
+        policyLabel: label,
         message: 'Missing feature flag: $feature.',
       ),
     );
@@ -333,6 +447,7 @@ class AccessPolicy {
       missingReason: (features) => AccessDenialReason(
         type: AccessDenialReasonType.missingAnyFeature,
         candidates: features,
+        policyLabel: label,
         message: 'Requires at least one feature flag: ${features.join(', ')}.',
       ),
     );
@@ -344,6 +459,7 @@ class AccessPolicy {
           AccessDenialReason(
             type: AccessDenialReasonType.featureValueMismatch,
             key: requirement.key,
+            policyLabel: label,
             expected: requirement.value,
             actual: actual,
             message:
@@ -360,6 +476,7 @@ class AccessPolicy {
       missingReason: (role) => AccessDenialReason(
         type: AccessDenialReasonType.missingRole,
         key: role,
+        policyLabel: label,
         message: 'Missing role: $role.',
       ),
     );
@@ -370,6 +487,7 @@ class AccessPolicy {
       missingReason: (roles) => AccessDenialReason(
         type: AccessDenialReasonType.missingAnyRole,
         candidates: roles,
+        policyLabel: label,
         message: 'Requires at least one role: ${roles.join(', ')}.',
       ),
     );
@@ -381,6 +499,7 @@ class AccessPolicy {
       missingReason: (permission) => AccessDenialReason(
         type: AccessDenialReasonType.missingPermission,
         key: permission,
+        policyLabel: label,
         message: 'Missing permission: $permission.',
       ),
     );
@@ -391,6 +510,7 @@ class AccessPolicy {
       missingReason: (permissions) => AccessDenialReason(
         type: AccessDenialReasonType.missingAnyPermission,
         candidates: permissions,
+        policyLabel: label,
         message: 'Requires at least one permission: ${permissions.join(', ')}.',
       ),
     );
@@ -402,6 +522,7 @@ class AccessPolicy {
           AccessDenialReason(
             type: AccessDenialReasonType.attributeMismatch,
             key: requirement.key,
+            policyLabel: label,
             expected: requirement.value,
             actual: actual,
             message:
@@ -416,6 +537,7 @@ class AccessPolicy {
       reasons.add(
         AccessDenialReason(
           type: AccessDenialReasonType.predicateRejected,
+          policyLabel: label,
           message: predicateReason,
         ),
       );
@@ -447,6 +569,7 @@ class AccessPolicy {
       return AccessDecision.denyWithReasons(<AccessDenialReason>[
         AccessDenialReason(
           type: AccessDenialReasonType.emptyPolicySet,
+          policyLabel: label,
           message: 'Requires at least one policy to allow access.',
         ),
       ]);
@@ -472,6 +595,7 @@ class AccessPolicy {
     return AccessDecision.denyWithReasons(<AccessDenialReason>[
       AccessDenialReason(
         type: AccessDenialReasonType.notPolicyMatched,
+        policyLabel: label,
         message: _notReason,
       ),
     ]);
@@ -519,6 +643,20 @@ class AccessPolicy {
       'anyPermissions': _sortedStrings(anyPermissions),
       'attributes': _sortedMap(attributes),
       'predicateReason': predicateReason,
+      'label': label,
+    };
+  }
+
+  @override
+  String toString() {
+    return switch (_mode) {
+      _AccessPolicyMode.leaf => _leafToString(),
+      _AccessPolicyMode.allOf =>
+        'AccessPolicy.allOf(label: $label, policies: ${_policies.length})',
+      _AccessPolicyMode.anyOf =>
+        'AccessPolicy.anyOf(label: $label, policies: ${_policies.length})',
+      _AccessPolicyMode.not =>
+        'AccessPolicy.not(label: $label, reason: $_notReason)',
     };
   }
 
@@ -567,5 +705,21 @@ class AccessPolicy {
     return <String, Object?>{
       for (final entry in entries) entry.key: entry.value,
     };
+  }
+
+  String _leafToString() {
+    final requirements = <String>[
+      if (allFeatures.isNotEmpty) 'allFeatures: $allFeatures',
+      if (anyFeatures.isNotEmpty) 'anyFeatures: $anyFeatures',
+      if (featureValues.isNotEmpty) 'featureValues: $featureValues',
+      if (allRoles.isNotEmpty) 'allRoles: $allRoles',
+      if (anyRoles.isNotEmpty) 'anyRoles: $anyRoles',
+      if (allPermissions.isNotEmpty) 'allPermissions: $allPermissions',
+      if (anyPermissions.isNotEmpty) 'anyPermissions: $anyPermissions',
+      if (attributes.isNotEmpty) 'attributes: $attributes',
+      if (predicate != null) 'predicate: true',
+      if (label != null) 'label: $label',
+    ];
+    return 'AccessPolicy(${requirements.join(', ')})';
   }
 }

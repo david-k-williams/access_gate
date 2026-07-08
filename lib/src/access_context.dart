@@ -156,6 +156,37 @@ class AccessContext {
     );
   }
 
+  /// Combines this context with [other].
+  ///
+  /// Set-based facts are unioned. Map-based facts from [other] override this
+  /// context when both contain the same key. The resulting [userId] comes from
+  /// [other] when present, otherwise this context's [userId] is retained.
+  AccessContext merge(AccessContext other) {
+    return AccessContext(
+      userId: other.userId ?? userId,
+      enabledFeatures: <String>{...enabledFeatures, ...other.enabledFeatures},
+      featureValues: <String, Object?>{
+        ...featureValues,
+        ...other.featureValues,
+      },
+      roles: <String>{...roles, ...other.roles},
+      permissions: <String>{...permissions, ...other.permissions},
+      attributes: <String, Object?>{...attributes, ...other.attributes},
+    );
+  }
+
+  /// Combines [contexts] in order.
+  ///
+  /// Later contexts override earlier map values. Empty input returns
+  /// [AccessContext.empty].
+  static AccessContext combine(Iterable<AccessContext> contexts) {
+    var combined = const AccessContext.empty();
+    for (final context in contexts) {
+      combined = combined.merge(context);
+    }
+    return combined;
+  }
+
   /// Converts this context into JSON-compatible data.
   Map<String, Object?> toJson() {
     return <String, Object?>{

@@ -11,14 +11,17 @@ description: Integrate and use the access_gate Flutter package in application co
    claims, or backend policy source before writing gates.
 2. Add or verify the `access_gate` dependency.
 3. Create one `AccessContext` from existing app state; do not invent a separate
-   authorization source.
+   authorization source. Use `AccessContext.combine` when facts come from
+   multiple existing sources.
 4. Put `AccessScope` above the UI that needs shared access facts.
 5. Choose the smallest UI primitive:
    - Use `AccessGate` for one widget or section.
    - Use `AccessGuard` for a page, route body, or tab.
    - Use `AccessBuilder` for fully custom branching.
 6. Use typed enum keys in app code when the app has a stable access vocabulary.
-7. Add widget tests for allowed and denied states.
+7. Keep app loading shells outside gated UI until auth, claims, flags, or
+   backend policy facts are ready.
+8. Add widget tests for allowed, denied, and controller-update states.
 
 ## Integration Rules
 
@@ -28,6 +31,7 @@ description: Integrate and use the access_gate Flutter package in application co
   strings through `accessKey`.
 - Prefer `AccessPolicy.allOf`, `AccessPolicy.anyOf`, and `AccessPolicy.not`
   for readable complex policies.
+- Use labels on policies when denied states need diagnostics or analytics.
 - Use `decision.denialReasons` for structured fallback UI; use
   `decision.reasons` for simple messages.
 - Use JSON helpers only for JSON-compatible contexts and policies. Do not try to
@@ -37,4 +41,4 @@ description: Integrate and use the access_gate Flutter package in application co
 
 Read `references/integration-patterns.md` for concrete snippets covering
 controller setup, typed keys, widget gates, page guards, composed policies,
-structured denial reasons, JSON helpers, and tests.
+structured denial reasons, JSON helpers, loading patterns, and tests.

@@ -1,3 +1,11 @@
+## 0.0.4
+
+* Added `AccessContext.merge` and `AccessContext.combine` for building one context from multiple app state sources.
+* Added convenience policy and gate constructors for any-of features, roles, permissions, exact feature values, and exact attributes, including typed-key variants.
+* Added optional policy labels, labeled denial reasons, and lightweight diagnostics through value equality, `hashCode`, and `toString` support.
+* Rebuilt the example app as an interactive controller-driven demo with denied states, disabled UI, and JSON previews.
+* Expanded consumer docs, provider recipes, loading guidance, testing guidance, and Agent Skills-compatible references.
+
 ## 0.0.3
 
 * Changed `AccessHidden` to render as a zero-size widget so denied gates remain safe inside multi-child layouts.

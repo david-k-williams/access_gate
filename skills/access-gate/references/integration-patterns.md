@@ -4,7 +4,7 @@
 
 ```yaml
 dependencies:
-  access_gate: ^0.0.3
+  access_gate: ^0.0.4
 ```
 
 For local package development:
@@ -42,6 +42,20 @@ Update after auth, claims, remote config, account, or backend policy changes:
 ```dart
 accessController.update(nextContext);
 ```
+
+Combine multiple fact sources in order:
+
+```dart
+final context = AccessContext.combine([
+  AccessContext(enabledFeatures: remoteFeatures),
+  AccessContext(permissions: claimPermissions),
+  AccessContext(attributes: {'plan': accountPlan}),
+  AccessContext(featureValues: localOverrides),
+]);
+```
+
+Show the app's loading shell until initial access facts are ready; an empty
+context denies protected UI by design.
 
 ## Typed Keys
 
@@ -90,6 +104,21 @@ AccessGate.whenKeys(
 );
 ```
 
+```dart
+AccessGate.anyPermission(
+  permissions: {'reports.view', 'reports.manage'},
+  child: const ReportsButton(),
+);
+```
+
+```dart
+AccessGate.featureValue(
+  feature: 'reports_variant',
+  value: 'variant_b',
+  child: const VariantReportsPanel(),
+);
+```
+
 ## Page Guards
 
 ```dart
@@ -107,14 +136,15 @@ AccessGuard(
 ```dart
 final policy = AccessPolicy.allOf([
   AccessPolicy.anyOf([
-    AccessPolicy.role('admin'),
-    AccessPolicy.permission('reports.manage'),
+    AccessPolicy.role('admin', label: 'Admin role'),
+    AccessPolicy.permission('reports.manage', label: 'Reports manager'),
   ]),
   AccessPolicy.not(
     AccessPolicy.role('suspended'),
     reason: 'Suspended users cannot access reports.',
+    label: 'Suspension exclusion',
   ),
-]);
+], label: 'Reports access');
 ```
 
 ## Structured Denied UI
@@ -122,7 +152,7 @@ final policy = AccessPolicy.allOf([
 ```dart
 fallbackBuilder: (context, decision) {
   final reason = decision.denialReasons.first;
-  return Text('${reason.key}: ${reason.message}');
+  return Text('${reason.policyLabel ?? reason.key}: ${reason.message}');
 }
 ```
 
