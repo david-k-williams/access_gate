@@ -55,6 +55,18 @@ class AccessContext {
     );
   }
 
+  /// Creates an access context from JSON-compatible data.
+  factory AccessContext.fromJson(Map<String, Object?> json) {
+    return AccessContext(
+      userId: json['userId'] as String?,
+      enabledFeatures: _stringSetFromJson(json['enabledFeatures']),
+      featureValues: _objectMapFromJson(json['featureValues']),
+      roles: _stringSetFromJson(json['roles']),
+      permissions: _stringSetFromJson(json['permissions']),
+      attributes: _objectMapFromJson(json['attributes']),
+    );
+  }
+
   /// Optional stable user identifier.
   final String? userId;
 
@@ -144,6 +156,18 @@ class AccessContext {
     );
   }
 
+  /// Converts this context into JSON-compatible data.
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'userId': userId,
+      'enabledFeatures': _sortedStrings(enabledFeatures),
+      'featureValues': _sortedMap(featureValues),
+      'roles': _sortedStrings(roles),
+      'permissions': _sortedStrings(permissions),
+      'attributes': _sortedMap(attributes),
+    };
+  }
+
   @override
   bool operator ==(Object other) {
     return other is AccessContext &&
@@ -169,5 +193,33 @@ class AccessContext {
 
   static Object _hashEntry(MapEntry<String, Object?> entry) {
     return Object.hash(entry.key, entry.value);
+  }
+
+  static Set<String> _stringSetFromJson(Object? value) {
+    if (value == null) {
+      return const <String>{};
+    }
+    return Set<String>.unmodifiable((value as Iterable).cast<String>());
+  }
+
+  static Map<String, Object?> _objectMapFromJson(Object? value) {
+    if (value == null) {
+      return const <String, Object?>{};
+    }
+    return Map<String, Object?>.unmodifiable(
+      (value as Map).cast<String, Object?>(),
+    );
+  }
+
+  static List<String> _sortedStrings(Set<String> values) {
+    return values.toList()..sort();
+  }
+
+  static Map<String, Object?> _sortedMap(Map<String, Object?> values) {
+    final entries = values.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return <String, Object?>{
+      for (final entry in entries) entry.key: entry.value,
+    };
   }
 }

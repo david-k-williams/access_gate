@@ -55,6 +55,19 @@ void main() {
       expect(context.hasPermissionKey(TestPermission.reportsView), isTrue);
       expect(context.attributeKey(TestAttribute.plan), 'pro');
     });
+
+    test('round-trips through JSON-compatible data', () {
+      final context = AccessContext(
+        userId: 'user-1',
+        enabledFeatures: <String>{'advanced_reports'},
+        featureValues: <String, Object?>{'checkout': true},
+        roles: <String>{'admin'},
+        permissions: <String>{'reports.view'},
+        attributes: <String, Object?>{'plan': 'pro'},
+      );
+
+      expect(AccessContext.fromJson(context.toJson()), context);
+    });
   });
 
   group('AccessPolicy', () {
@@ -96,6 +109,15 @@ void main() {
       expect(decision.reasons, contains('Missing role: admin.'));
       expect(decision.reasons, contains('Missing permission: reports.view.'));
       expect(decision.reasons, contains('Attribute plan must equal pro.'));
+      expect(
+        decision.denialReasons.map((reason) => reason.type),
+        containsAll(<AccessDenialReasonType>[
+          AccessDenialReasonType.missingFeature,
+          AccessDenialReasonType.missingRole,
+          AccessDenialReasonType.missingPermission,
+          AccessDenialReasonType.attributeMismatch,
+        ]),
+      );
     });
 
     test('supports any-of role, permission, and feature requirements', () {
@@ -269,6 +291,55 @@ void main() {
       expect(allowed.allowed, isTrue);
       expect(denied.denied, isTrue);
       expect(denied.reasons, <String>['Suspended users cannot access this.']);
+      expect(
+        denied.denialReasons.single.type,
+        AccessDenialReasonType.notPolicyMatched,
+      );
+    });
+
+    test('round-trips leaf policies through JSON-compatible data', () {
+      final policy = AccessPolicy(
+        allFeatures: <String>{'advanced_reports'},
+        anyRoles: <String>{'admin', 'analyst'},
+        allPermissions: <String>{'reports.view'},
+        attributes: <String, Object?>{'plan': 'pro'},
+      );
+      final roundTripped = AccessPolicy.fromJson(policy.toJson());
+
+      final context = AccessContext(
+        enabledFeatures: <String>{'advanced_reports'},
+        roles: <String>{'analyst'},
+        permissions: <String>{'reports.view'},
+        attributes: <String, Object?>{'plan': 'pro'},
+      );
+
+      expect(roundTripped.evaluate(context).allowed, isTrue);
+      expect(roundTripped.toJson(), policy.toJson());
+    });
+
+    test('round-trips composed policies through JSON-compatible data', () {
+      final policy = AccessPolicy.allOf(<AccessPolicy>[
+        AccessPolicy.anyOf(<AccessPolicy>[
+          AccessPolicy.role('admin'),
+          AccessPolicy.permission('reports.manage'),
+        ]),
+        AccessPolicy.not(
+          AccessPolicy.role('suspended'),
+          reason: 'Suspended users cannot access this.',
+        ),
+      ]);
+      final roundTripped = AccessPolicy.fromJson(policy.toJson());
+
+      final context = AccessContext(roles: <String>{'admin'});
+
+      expect(roundTripped.evaluate(context).allowed, isTrue);
+      expect(roundTripped.toJson(), policy.toJson());
+    });
+
+    test('does not serialize predicate policies', () {
+      final policy = AccessPolicy(predicate: (context) => true);
+
+      expect(policy.toJson, throwsUnsupportedError);
     });
   });
 
@@ -451,6 +522,48 @@ void main() {
     });
   });
 
+  group('AccessGuard', () {
+    testWidgets('builds the allowed branch', (tester) async {
+      await tester.pumpWidget(
+        _TestHost(
+          child: AccessGuard(
+            accessContext: AccessContext(roles: <String>{'admin'}),
+            policy: AccessPolicy.role('admin'),
+            builder: (context, decision) {
+              return const Text('Admin page');
+            },
+            denied: const Text('Denied page'),
+          ),
+        ),
+      );
+
+      expect(find.text('Admin page'), findsOneWidget);
+      expect(find.text('Denied page'), findsNothing);
+    });
+
+    testWidgets('builds the denied branch with structured reasons', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _TestHost(
+          child: AccessGuard(
+            accessContext: AccessContext(),
+            policy: AccessPolicy.permission('reports.view'),
+            builder: (context, decision) {
+              return const Text('Reports page');
+            },
+            deniedBuilder: (context, decision) {
+              return Text(decision.denialReasons.single.key!);
+            },
+          ),
+        ),
+      );
+
+      expect(find.text('Reports page'), findsNothing);
+      expect(find.text('reports.view'), findsOneWidget);
+    });
+  });
+
   group('AccessDecision', () {
     test('defensively copies and exposes immutable reasons', () {
       final reasons = <String>['Missing permission: reports.view.'];
@@ -459,7 +572,31 @@ void main() {
       reasons.add('Missing role: admin.');
 
       expect(decision.reasons, <String>['Missing permission: reports.view.']);
+      expect(decision.denialReasons.single.message, decision.reasons.single);
       expect(() => decision.reasons.add('Other'), throwsUnsupportedError);
+      expect(
+        () => decision.denialReasons.add(AccessDenialReason.custom('Other')),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('defensively copies structured denial reasons', () {
+      final denialReasons = <AccessDenialReason>[
+        AccessDenialReason(
+          type: AccessDenialReasonType.missingPermission,
+          key: 'reports.view',
+          message: 'Missing permission: reports.view.',
+        ),
+      ];
+      final decision = AccessDecision.denyWithReasons(denialReasons);
+
+      denialReasons.clear();
+
+      expect(decision.reasons, <String>['Missing permission: reports.view.']);
+      expect(
+        decision.denialReasons.single.type,
+        AccessDenialReasonType.missingPermission,
+      );
     });
   });
 

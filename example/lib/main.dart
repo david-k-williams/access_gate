@@ -24,6 +24,13 @@ class ExampleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final jsonContext = AccessContext.fromJson(
+      accessController.context.toJson(),
+    );
+    final jsonPolicy = AccessPolicy.fromJson(
+      AccessPolicy.permission('reports.view').toJson(),
+    );
+
     return AccessScope(
       controller: accessController,
       child: MaterialApp(
@@ -64,6 +71,17 @@ class ExampleApp extends StatelessWidget {
                   ]),
                   fallback: const Text('Composed policy did not allow access.'),
                   child: const Text('Composed policy gate: reports access'),
+                ),
+                const SizedBox(height: 12),
+                AccessGuard(
+                  accessContext: jsonContext,
+                  policy: jsonPolicy,
+                  builder: (context, decision) {
+                    return const Text('Guard with JSON policy: reports page');
+                  },
+                  deniedBuilder: (context, decision) {
+                    return Text(decision.denialReasons.first.message);
+                  },
                 ),
               ],
             ),

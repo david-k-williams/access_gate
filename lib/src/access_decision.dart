@@ -1,18 +1,32 @@
 import 'package:flutter/foundation.dart';
 
+import 'access_denial_reason.dart';
+
 /// Result of evaluating an [AccessPolicy].
 @immutable
 class AccessDecision {
-  const AccessDecision._({required this.allowed, required this.reasons});
+  const AccessDecision._({
+    required this.allowed,
+    required this.reasons,
+    required this.denialReasons,
+  });
 
   /// Creates an access decision.
   factory AccessDecision({
     required bool allowed,
     Iterable<String> reasons = const <String>[],
+    Iterable<AccessDenialReason> denialReasons = const <AccessDenialReason>[],
   }) {
+    final typedReasons = <AccessDenialReason>[
+      ...denialReasons,
+      ...reasons.map(AccessDenialReason.custom),
+    ];
     return AccessDecision._(
       allowed: allowed,
-      reasons: List<String>.unmodifiable(reasons),
+      reasons: List<String>.unmodifiable(
+        typedReasons.map((reason) => reason.message),
+      ),
+      denialReasons: List<AccessDenialReason>.unmodifiable(typedReasons),
     );
   }
 
@@ -20,14 +34,19 @@ class AccessDecision {
   static const AccessDecision allow = AccessDecision._(
     allowed: true,
     reasons: <String>[],
+    denialReasons: <AccessDenialReason>[],
   );
 
   /// Creates a denied decision with immutable [reasons].
   factory AccessDecision.deny(Iterable<String> reasons) {
-    return AccessDecision._(
-      allowed: false,
-      reasons: List<String>.unmodifiable(reasons),
-    );
+    return AccessDecision(allowed: false, reasons: reasons);
+  }
+
+  /// Creates a denied decision with structured [denialReasons].
+  factory AccessDecision.denyWithReasons(
+    Iterable<AccessDenialReason> denialReasons,
+  ) {
+    return AccessDecision(allowed: false, denialReasons: denialReasons);
   }
 
   /// Whether access was granted.
@@ -35,6 +54,9 @@ class AccessDecision {
 
   /// Human-readable explanations for a denied decision.
   final List<String> reasons;
+
+  /// Structured explanations for a denied decision.
+  final List<AccessDenialReason> denialReasons;
 
   /// Whether access was denied.
   bool get denied => !allowed;

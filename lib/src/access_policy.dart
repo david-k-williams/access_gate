@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'access_context.dart';
 import 'access_decision.dart';
+import 'access_denial_reason.dart';
 import 'access_key.dart';
 
 /// Custom access check for app-specific ABAC logic.
@@ -133,6 +134,36 @@ class AccessPolicy {
     );
   }
 
+  /// Creates a serializable policy from JSON-compatible data.
+  ///
+  /// Predicates cannot be restored from JSON. Use [predicate] directly for
+  /// runtime-only checks.
+  factory AccessPolicy.fromJson(Map<String, Object?> json) {
+    final type = json['type'] as String? ?? 'leaf';
+    return switch (type) {
+      'leaf' => AccessPolicy(
+        allFeatures: _stringSetFromJson(json['allFeatures']),
+        anyFeatures: _stringSetFromJson(json['anyFeatures']),
+        featureValues: _objectMapFromJson(json['featureValues']),
+        allRoles: _stringSetFromJson(json['allRoles']),
+        anyRoles: _stringSetFromJson(json['anyRoles']),
+        allPermissions: _stringSetFromJson(json['allPermissions']),
+        anyPermissions: _stringSetFromJson(json['anyPermissions']),
+        attributes: _objectMapFromJson(json['attributes']),
+        predicateReason:
+            json['predicateReason'] as String? ??
+            'Custom access rule rejected access.',
+      ),
+      'allOf' => AccessPolicy.allOf(_policiesFromJson(json['policies'])),
+      'anyOf' => AccessPolicy.anyOf(_policiesFromJson(json['policies'])),
+      'not' => AccessPolicy.not(
+        AccessPolicy.fromJson(_mapFromJson(json['policy'], 'policy')),
+        reason: json['reason'] as String? ?? _defaultNotReason,
+      ),
+      _ => throw ArgumentError.value(type, 'type', 'Unknown policy type.'),
+    };
+  }
+
   /// Creates a policy from typed access keys.
   factory AccessPolicy.fromKeys({
     Set<AccessFeature> allFeatures = const <AccessFeature>{},
@@ -246,6 +277,29 @@ class AccessPolicy {
         predicate == null;
   }
 
+  /// Converts this policy into JSON-compatible data.
+  ///
+  /// Policies with a custom predicate cannot be serialized because functions are
+  /// runtime-only values.
+  Map<String, Object?> toJson() {
+    return switch (_mode) {
+      _AccessPolicyMode.leaf => _leafToJson(),
+      _AccessPolicyMode.allOf => <String, Object?>{
+        'type': 'allOf',
+        'policies': _policies.map((policy) => policy.toJson()).toList(),
+      },
+      _AccessPolicyMode.anyOf => <String, Object?>{
+        'type': 'anyOf',
+        'policies': _policies.map((policy) => policy.toJson()).toList(),
+      },
+      _AccessPolicyMode.not => <String, Object?>{
+        'type': 'not',
+        'policy': _policies.single.toJson(),
+        'reason': _notReason,
+      },
+    };
+  }
+
   /// Evaluates this policy against [context].
   AccessDecision evaluate(AccessContext context) {
     return switch (_mode) {
@@ -261,26 +315,40 @@ class AccessPolicy {
       return AccessDecision.allow;
     }
 
-    final reasons = <String>[];
+    final reasons = <AccessDenialReason>[];
     _requireAll(
       reasons: reasons,
       values: allFeatures,
       hasValue: context.hasFeature,
-      missingReason: (feature) => 'Missing feature flag: $feature.',
+      missingReason: (feature) => AccessDenialReason(
+        type: AccessDenialReasonType.missingFeature,
+        key: feature,
+        message: 'Missing feature flag: $feature.',
+      ),
     );
     _requireAny(
       reasons: reasons,
       values: anyFeatures,
       hasValue: context.hasFeature,
-      missingReason: (features) =>
-          'Requires at least one feature flag: ${features.join(', ')}.',
+      missingReason: (features) => AccessDenialReason(
+        type: AccessDenialReasonType.missingAnyFeature,
+        candidates: features,
+        message: 'Requires at least one feature flag: ${features.join(', ')}.',
+      ),
     );
 
     for (final requirement in featureValues.entries) {
       final actual = context.featureValue(requirement.key);
       if (actual != requirement.value) {
         reasons.add(
-          'Feature ${requirement.key} must equal ${requirement.value}.',
+          AccessDenialReason(
+            type: AccessDenialReasonType.featureValueMismatch,
+            key: requirement.key,
+            expected: requirement.value,
+            actual: actual,
+            message:
+                'Feature ${requirement.key} must equal ${requirement.value}.',
+          ),
         );
       }
     }
@@ -289,82 +357,111 @@ class AccessPolicy {
       reasons: reasons,
       values: allRoles,
       hasValue: context.hasRole,
-      missingReason: (role) => 'Missing role: $role.',
+      missingReason: (role) => AccessDenialReason(
+        type: AccessDenialReasonType.missingRole,
+        key: role,
+        message: 'Missing role: $role.',
+      ),
     );
     _requireAny(
       reasons: reasons,
       values: anyRoles,
       hasValue: context.hasRole,
-      missingReason: (roles) =>
-          'Requires at least one role: ${roles.join(', ')}.',
+      missingReason: (roles) => AccessDenialReason(
+        type: AccessDenialReasonType.missingAnyRole,
+        candidates: roles,
+        message: 'Requires at least one role: ${roles.join(', ')}.',
+      ),
     );
 
     _requireAll(
       reasons: reasons,
       values: allPermissions,
       hasValue: context.hasPermission,
-      missingReason: (permission) => 'Missing permission: $permission.',
+      missingReason: (permission) => AccessDenialReason(
+        type: AccessDenialReasonType.missingPermission,
+        key: permission,
+        message: 'Missing permission: $permission.',
+      ),
     );
     _requireAny(
       reasons: reasons,
       values: anyPermissions,
       hasValue: context.hasPermission,
-      missingReason: (permissions) =>
-          'Requires at least one permission: ${permissions.join(', ')}.',
+      missingReason: (permissions) => AccessDenialReason(
+        type: AccessDenialReasonType.missingAnyPermission,
+        candidates: permissions,
+        message: 'Requires at least one permission: ${permissions.join(', ')}.',
+      ),
     );
 
     for (final requirement in attributes.entries) {
       final actual = context.attribute(requirement.key);
       if (actual != requirement.value) {
         reasons.add(
-          'Attribute ${requirement.key} must equal ${requirement.value}.',
+          AccessDenialReason(
+            type: AccessDenialReasonType.attributeMismatch,
+            key: requirement.key,
+            expected: requirement.value,
+            actual: actual,
+            message:
+                'Attribute ${requirement.key} must equal ${requirement.value}.',
+          ),
         );
       }
     }
 
     final predicate = this.predicate;
     if (predicate != null && !predicate(context)) {
-      reasons.add(predicateReason);
+      reasons.add(
+        AccessDenialReason(
+          type: AccessDenialReasonType.predicateRejected,
+          message: predicateReason,
+        ),
+      );
     }
 
     if (reasons.isEmpty) {
       return AccessDecision.allow;
     }
-    return AccessDecision.deny(reasons);
+    return AccessDecision.denyWithReasons(reasons);
   }
 
   AccessDecision _evaluateAllOf(AccessContext context) {
-    final reasons = <String>[];
+    final reasons = <AccessDenialReason>[];
     for (final policy in _policies) {
       final decision = policy.evaluate(context);
       if (decision.denied) {
-        reasons.addAll(decision.reasons);
+        reasons.addAll(decision.denialReasons);
       }
     }
 
     if (reasons.isEmpty) {
       return AccessDecision.allow;
     }
-    return AccessDecision.deny(reasons);
+    return AccessDecision.denyWithReasons(reasons);
   }
 
   AccessDecision _evaluateAnyOf(AccessContext context) {
     if (_policies.isEmpty) {
-      return AccessDecision.deny(const <String>[
-        'Requires at least one policy to allow access.',
+      return AccessDecision.denyWithReasons(<AccessDenialReason>[
+        AccessDenialReason(
+          type: AccessDenialReasonType.emptyPolicySet,
+          message: 'Requires at least one policy to allow access.',
+        ),
       ]);
     }
 
-    final reasons = <String>[];
+    final reasons = <AccessDenialReason>[];
     for (final policy in _policies) {
       final decision = policy.evaluate(context);
       if (decision.allowed) {
         return AccessDecision.allow;
       }
-      reasons.addAll(decision.reasons);
+      reasons.addAll(decision.denialReasons);
     }
 
-    return AccessDecision.deny(reasons);
+    return AccessDecision.denyWithReasons(reasons);
   }
 
   AccessDecision _evaluateNot(AccessContext context) {
@@ -372,14 +469,19 @@ class AccessPolicy {
     if (decision.denied) {
       return AccessDecision.allow;
     }
-    return AccessDecision.deny(<String>[_notReason]);
+    return AccessDecision.denyWithReasons(<AccessDenialReason>[
+      AccessDenialReason(
+        type: AccessDenialReasonType.notPolicyMatched,
+        message: _notReason,
+      ),
+    ]);
   }
 
   static void _requireAll({
-    required List<String> reasons,
+    required List<AccessDenialReason> reasons,
     required Set<String> values,
     required bool Function(String value) hasValue,
-    required String Function(String value) missingReason,
+    required AccessDenialReason Function(String value) missingReason,
   }) {
     for (final value in values) {
       if (!hasValue(value)) {
@@ -389,13 +491,81 @@ class AccessPolicy {
   }
 
   static void _requireAny({
-    required List<String> reasons,
+    required List<AccessDenialReason> reasons,
     required Set<String> values,
     required bool Function(String value) hasValue,
-    required String Function(Set<String> values) missingReason,
+    required AccessDenialReason Function(Set<String> values) missingReason,
   }) {
     if (values.isNotEmpty && !values.any(hasValue)) {
       reasons.add(missingReason(values));
     }
+  }
+
+  Map<String, Object?> _leafToJson() {
+    if (predicate != null) {
+      throw UnsupportedError(
+        'AccessPolicy predicates cannot be serialized to JSON.',
+      );
+    }
+
+    return <String, Object?>{
+      'type': 'leaf',
+      'allFeatures': _sortedStrings(allFeatures),
+      'anyFeatures': _sortedStrings(anyFeatures),
+      'featureValues': _sortedMap(featureValues),
+      'allRoles': _sortedStrings(allRoles),
+      'anyRoles': _sortedStrings(anyRoles),
+      'allPermissions': _sortedStrings(allPermissions),
+      'anyPermissions': _sortedStrings(anyPermissions),
+      'attributes': _sortedMap(attributes),
+      'predicateReason': predicateReason,
+    };
+  }
+
+  static List<AccessPolicy> _policiesFromJson(Object? value) {
+    if (value == null) {
+      return const <AccessPolicy>[];
+    }
+    return (value as Iterable)
+        .map((item) => AccessPolicy.fromJson(_mapFromJson(item, 'policies')))
+        .toList();
+  }
+
+  static Set<String> _stringSetFromJson(Object? value) {
+    if (value == null) {
+      return const <String>{};
+    }
+    return Set<String>.unmodifiable((value as Iterable).cast<String>());
+  }
+
+  static Map<String, Object?> _objectMapFromJson(Object? value) {
+    if (value == null) {
+      return const <String, Object?>{};
+    }
+    return Map<String, Object?>.unmodifiable(
+      (value as Map).cast<String, Object?>(),
+    );
+  }
+
+  static Map<String, Object?> _mapFromJson(Object? value, String key) {
+    if (value is Map<String, Object?>) {
+      return value;
+    }
+    if (value is Map) {
+      return value.cast<String, Object?>();
+    }
+    throw ArgumentError.value(value, key, 'Expected a JSON object.');
+  }
+
+  static List<String> _sortedStrings(Set<String> values) {
+    return values.toList()..sort();
+  }
+
+  static Map<String, Object?> _sortedMap(Map<String, Object?> values) {
+    final entries = values.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return <String, Object?>{
+      for (final entry in entries) entry.key: entry.value,
+    };
   }
 }

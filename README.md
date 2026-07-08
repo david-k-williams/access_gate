@@ -15,6 +15,9 @@ state, or a backend policy response, then expose those facts through
 - Permission gates for fine-grained access checks.
 - ABAC gates with exact attributes and custom predicates.
 - Policy composition with all-of, any-of, and not rules.
+- Structured denial reasons for custom fallback UI.
+- `AccessGuard` for page-level access decisions.
+- JSON helpers for access contexts and serializable policies.
 - `AccessScope` and `AccessController` for inherited access state.
 - `AccessHidden`, a zero-render-object fallback inspired by `nil`.
 
@@ -124,6 +127,23 @@ AccessGate(
 );
 ```
 
+## Page guards
+
+Use `AccessGuard` when the whole page or route body should branch on an access
+decision.
+
+```dart
+AccessGuard(
+  policy: AccessPolicy.permission('reports.view'),
+  builder: (context, decision) {
+    return const ReportsPage();
+  },
+  deniedBuilder: (context, decision) {
+    return Text(decision.reasons.first);
+  },
+);
+```
+
 ## Typed keys
 
 The core API stores provider-facing strings, but apps can define typed keys with
@@ -186,11 +206,29 @@ Use `fallback` or `fallbackBuilder` when denied users should see something.
 AccessGate.permission(
   permission: 'billing.manage',
   fallbackBuilder: (context, decision) {
-    return Text(decision.reasons.first);
+    final reason = decision.denialReasons.first;
+    return Text('${reason.key}: ${reason.message}');
   },
   child: const BillingSettings(),
 );
 ```
+
+`decision.reasons` remains available as a simple list of messages.
+
+## JSON helpers
+
+`AccessContext` can round-trip through JSON-compatible maps. Policies without
+custom predicates can also be serialized, including composed policies.
+
+```dart
+final context = AccessContext.fromJson(savedContextJson);
+final policy = AccessPolicy.fromJson(savedPolicyJson);
+
+final contextJson = context.toJson();
+final policyJson = policy.toJson();
+```
+
+Custom predicate functions are runtime-only and cannot be serialized.
 
 ## Important security note
 
