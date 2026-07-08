@@ -13,19 +13,59 @@ typedef AccessPredicate = bool Function(AccessContext context);
 /// requirements must pass for access to be allowed.
 @immutable
 class AccessPolicy {
-  /// Creates a policy from explicit requirements.
-  const AccessPolicy({
-    this.allFeatures = const <String>{},
-    this.anyFeatures = const <String>{},
-    this.featureValues = const <String, Object?>{},
-    this.allRoles = const <String>{},
-    this.anyRoles = const <String>{},
-    this.allPermissions = const <String>{},
-    this.anyPermissions = const <String>{},
-    this.attributes = const <String, Object?>{},
-    this.predicate,
-    this.predicateReason = 'Custom access rule rejected access.',
+  const AccessPolicy._({
+    required this.allFeatures,
+    required this.anyFeatures,
+    required this.featureValues,
+    required this.allRoles,
+    required this.anyRoles,
+    required this.allPermissions,
+    required this.anyPermissions,
+    required this.attributes,
+    required this.predicate,
+    required this.predicateReason,
   });
+
+  /// Creates a policy from explicit requirements.
+  factory AccessPolicy({
+    Set<String> allFeatures = const <String>{},
+    Set<String> anyFeatures = const <String>{},
+    Map<String, Object?> featureValues = const <String, Object?>{},
+    Set<String> allRoles = const <String>{},
+    Set<String> anyRoles = const <String>{},
+    Set<String> allPermissions = const <String>{},
+    Set<String> anyPermissions = const <String>{},
+    Map<String, Object?> attributes = const <String, Object?>{},
+    AccessPredicate? predicate,
+    String predicateReason = 'Custom access rule rejected access.',
+  }) {
+    return AccessPolicy._(
+      allFeatures: Set<String>.unmodifiable(allFeatures),
+      anyFeatures: Set<String>.unmodifiable(anyFeatures),
+      featureValues: Map<String, Object?>.unmodifiable(featureValues),
+      allRoles: Set<String>.unmodifiable(allRoles),
+      anyRoles: Set<String>.unmodifiable(anyRoles),
+      allPermissions: Set<String>.unmodifiable(allPermissions),
+      anyPermissions: Set<String>.unmodifiable(anyPermissions),
+      attributes: Map<String, Object?>.unmodifiable(attributes),
+      predicate: predicate,
+      predicateReason: predicateReason,
+    );
+  }
+
+  /// A reusable policy with no requirements.
+  static const AccessPolicy empty = AccessPolicy._(
+    allFeatures: <String>{},
+    anyFeatures: <String>{},
+    featureValues: <String, Object?>{},
+    allRoles: <String>{},
+    anyRoles: <String>{},
+    allPermissions: <String>{},
+    anyPermissions: <String>{},
+    attributes: <String, Object?>{},
+    predicate: null,
+    predicateReason: 'Custom access rule rejected access.',
+  );
 
   /// Creates a policy that requires a single enabled feature.
   factory AccessPolicy.feature(String feature) {

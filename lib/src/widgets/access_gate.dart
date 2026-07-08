@@ -20,7 +20,7 @@ class AccessGate extends StatelessWidget {
   const AccessGate({
     super.key,
     required this.child,
-    this.policy = const AccessPolicy(),
+    this.policy = AccessPolicy.empty,
     this.fallback,
     this.fallbackBuilder,
     this.controller,
@@ -150,9 +150,44 @@ class AccessGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final decision = _decisionFor(context);
+    final explicitContext = accessContext;
+    if (explicitContext != null) {
+      return _buildForDecision(
+        context,
+        policy.evaluate(explicitContext),
+        child,
+      );
+    }
+
+    final explicitController = controller;
+    if (explicitController != null) {
+      return ListenableBuilder(
+        listenable: explicitController,
+        child: child,
+        builder: (context, allowedChild) {
+          return _buildForDecision(
+            context,
+            explicitController.evaluate(policy),
+            allowedChild!,
+          );
+        },
+      );
+    }
+
+    final scopedController = AccessScope.maybeOf(context);
+    final decision =
+        scopedController?.evaluate(policy) ??
+        policy.evaluate(const AccessContext.empty());
+    return _buildForDecision(context, decision, child);
+  }
+
+  Widget _buildForDecision(
+    BuildContext context,
+    AccessDecision decision,
+    Widget allowedChild,
+  ) {
     if (decision.allowed) {
-      return child;
+      return allowedChild;
     }
 
     final builder = fallbackBuilder;
@@ -160,24 +195,5 @@ class AccessGate extends StatelessWidget {
       return builder(context, decision);
     }
     return fallback ?? accessHidden;
-  }
-
-  AccessDecision _decisionFor(BuildContext context) {
-    final explicitContext = accessContext;
-    if (explicitContext != null) {
-      return policy.evaluate(explicitContext);
-    }
-
-    final explicitController = controller;
-    if (explicitController != null) {
-      return explicitController.evaluate(policy);
-    }
-
-    final scopedController = AccessScope.maybeOf(context);
-    if (scopedController != null) {
-      return scopedController.evaluate(policy);
-    }
-
-    return policy.evaluate(const AccessContext.empty());
   }
 }

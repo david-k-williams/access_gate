@@ -22,6 +22,20 @@ void main() {
 
       expect(context.copyWith(userId: null).userId, isNull);
     });
+
+    test('hashCode matches equality for reordered maps', () {
+      final first = AccessContext(
+        featureValues: <String, Object?>{'checkout': true, 'nav': 'variant_b'},
+        attributes: <String, Object?>{'plan': 'pro', 'region': 'us'},
+      );
+      final second = AccessContext(
+        featureValues: <String, Object?>{'nav': 'variant_b', 'checkout': true},
+        attributes: <String, Object?>{'region': 'us', 'plan': 'pro'},
+      );
+
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+    });
   });
 
   group('AccessPolicy', () {
@@ -48,7 +62,7 @@ void main() {
     });
 
     test('denies access with reasons for missing requirements', () {
-      final decision = const AccessPolicy(
+      final decision = AccessPolicy(
         allFeatures: <String>{'advanced_reports'},
         allRoles: <String>{'admin'},
         allPermissions: <String>{'reports.view'},
@@ -72,13 +86,36 @@ void main() {
         permissions: <String>{'invoices.read'},
       );
 
-      final decision = const AccessPolicy(
+      final decision = AccessPolicy(
         anyFeatures: <String>{'billing_v1', 'billing_v2'},
         anyRoles: <String>{'admin', 'owner'},
         anyPermissions: <String>{'invoices.write', 'invoices.read'},
       ).evaluate(context);
 
       expect(decision.allowed, isTrue);
+    });
+
+    test('defensively copies and exposes immutable requirements', () {
+      final allFeatures = <String>{'advanced_reports'};
+      final attributes = <String, Object?>{'plan': 'pro'};
+      final policy = AccessPolicy(
+        allFeatures: allFeatures,
+        attributes: attributes,
+      );
+
+      allFeatures.clear();
+      attributes['plan'] = 'free';
+
+      final decision = policy.evaluate(
+        AccessContext(
+          enabledFeatures: <String>{'advanced_reports'},
+          attributes: <String, Object?>{'plan': 'pro'},
+        ),
+      );
+
+      expect(decision.allowed, isTrue);
+      expect(() => policy.allFeatures.add('billing'), throwsUnsupportedError);
+      expect(() => policy.attributes['region'] = 'us', throwsUnsupportedError);
     });
 
     test('supports a custom ABAC predicate', () {
@@ -179,6 +216,27 @@ void main() {
 
       expect(find.text('Admin tools'), findsOneWidget);
     });
+
+    testWidgets('updates when an explicit controller changes', (tester) async {
+      final controller = AccessController(AccessContext());
+
+      await tester.pumpWidget(
+        _TestHost(
+          child: AccessGate.role(
+            role: 'admin',
+            controller: controller,
+            child: const Text('Admin tools'),
+          ),
+        ),
+      );
+
+      expect(find.text('Admin tools'), findsNothing);
+
+      controller.update(AccessContext(roles: <String>{'admin'}));
+      await tester.pump();
+
+      expect(find.text('Admin tools'), findsOneWidget);
+    });
   });
 
   group('AccessBuilder', () {
@@ -198,6 +256,43 @@ void main() {
       );
 
       expect(find.text('Missing permission: reports.view.'), findsOneWidget);
+    });
+
+    testWidgets('updates when an explicit controller changes', (tester) async {
+      final controller = AccessController(AccessContext());
+
+      await tester.pumpWidget(
+        _TestHost(
+          child: AccessBuilder(
+            controller: controller,
+            policy: AccessPolicy.permission('reports.view'),
+            builder: (context, decision) {
+              return Text(decision.allowed ? 'Allowed' : 'Denied');
+            },
+          ),
+        ),
+      );
+
+      expect(find.text('Denied'), findsOneWidget);
+      expect(find.text('Allowed'), findsNothing);
+
+      controller.update(AccessContext(permissions: <String>{'reports.view'}));
+      await tester.pump();
+
+      expect(find.text('Allowed'), findsOneWidget);
+      expect(find.text('Denied'), findsNothing);
+    });
+  });
+
+  group('AccessDecision', () {
+    test('defensively copies and exposes immutable reasons', () {
+      final reasons = <String>['Missing permission: reports.view.'];
+      final decision = AccessDecision(allowed: false, reasons: reasons);
+
+      reasons.add('Missing role: admin.');
+
+      expect(decision.reasons, <String>['Missing permission: reports.view.']);
+      expect(() => decision.reasons.add('Other'), throwsUnsupportedError);
     });
   });
 

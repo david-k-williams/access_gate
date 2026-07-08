@@ -116,10 +116,10 @@ class AccessContext {
     return Object.hash(
       userId,
       Object.hashAllUnordered(enabledFeatures),
-      Object.hashAll(featureValues.entries.map(_hashEntry)),
+      Object.hashAllUnordered(featureValues.entries.map(_hashEntry)),
       Object.hashAllUnordered(roles),
       Object.hashAllUnordered(permissions),
-      Object.hashAll(attributes.entries.map(_hashEntry)),
+      Object.hashAllUnordered(attributes.entries.map(_hashEntry)),
     );
   }
 

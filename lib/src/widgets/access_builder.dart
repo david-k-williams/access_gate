@@ -38,25 +38,26 @@ class AccessBuilder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return builder(context, _decisionFor(context));
-  }
-
-  AccessDecision _decisionFor(BuildContext context) {
     final explicitContext = accessContext;
     if (explicitContext != null) {
-      return policy.evaluate(explicitContext);
+      return builder(context, policy.evaluate(explicitContext));
     }
 
     final explicitController = controller;
     if (explicitController != null) {
-      return explicitController.evaluate(policy);
+      return ListenableBuilder(
+        listenable: explicitController,
+        builder: (context, _) {
+          return builder(context, explicitController.evaluate(policy));
+        },
+      );
     }
 
     final scopedController = AccessScope.maybeOf(context);
     if (scopedController != null) {
-      return scopedController.evaluate(policy);
+      return builder(context, scopedController.evaluate(policy));
     }
 
-    return policy.evaluate(const AccessContext.empty());
+    return builder(context, policy.evaluate(const AccessContext.empty()));
   }
 }
