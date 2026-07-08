@@ -1,0 +1,4 @@
+interface:
+  display_name: "Access Gate"
+  short_description: "Use access_gate in Flutter apps"
+  default_prompt: "Use $access-gate to add widget access control to my Flutter app."

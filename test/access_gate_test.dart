@@ -475,6 +475,112 @@ void main() {
 
       expect(find.text('Composed access'), findsOneWidget);
     });
+
+    testWidgets('preserves render order with mixed gates and guards', (
+      tester,
+    ) async {
+      final controller = AccessController(
+        AccessContext(
+          enabledFeatures: <String>{'advanced_reports'},
+          roles: <String>{'admin'},
+          permissions: <String>{'reports.view'},
+          attributes: <String, Object?>{'plan': 'pro'},
+        ),
+      );
+      final jsonContext = AccessContext.fromJson(controller.context.toJson());
+      final jsonPolicy = AccessPolicy.fromJson(
+        AccessPolicy.permission('reports.view').toJson(),
+      );
+
+      await tester.pumpWidget(
+        AccessScope(
+          controller: controller,
+          child: _TestHost(
+            child: Column(
+              textDirection: TextDirection.ltr,
+              children: <Widget>[
+                AccessGate.when(
+                  allFeatures: <String>{'advanced_reports'},
+                  child: const Text('Typed key gate'),
+                ),
+                AccessGate.when(
+                  allPermissions: <String>{'reports.view'},
+                  child: const Text('String gate'),
+                ),
+                AccessGate(
+                  policy: AccessPolicy.allOf(<AccessPolicy>[
+                    AccessPolicy.role('admin'),
+                    AccessPolicy.not(AccessPolicy.role('suspended')),
+                  ]),
+                  child: const Text('Composed policy gate'),
+                ),
+                AccessGuard(
+                  accessContext: jsonContext,
+                  policy: jsonPolicy,
+                  builder: (context, decision) {
+                    return const Text('Guard with JSON policy');
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final typedTop = tester.getTopLeft(find.text('Typed key gate')).dy;
+      final stringTop = tester.getTopLeft(find.text('String gate')).dy;
+      final composedTop = tester
+          .getTopLeft(find.text('Composed policy gate'))
+          .dy;
+      final guardTop = tester
+          .getTopLeft(find.text('Guard with JSON policy'))
+          .dy;
+
+      expect(typedTop, lessThan(stringTop));
+      expect(stringTop, lessThan(composedTop));
+      expect(composedTop, lessThan(guardTop));
+    });
+
+    testWidgets('preserves render order around a default denied gate', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _TestHost(
+          child: Column(
+            textDirection: TextDirection.ltr,
+            children: <Widget>[
+              const Text('Before denied gate'),
+              AccessGate.permission(
+                permission: 'reports.view',
+                accessContext: AccessContext(),
+                child: const Text('Hidden reports'),
+              ),
+              const Text('After denied gate'),
+              AccessGuard(
+                accessContext: AccessContext(
+                  permissions: <String>{'reports.view'},
+                ),
+                policy: AccessPolicy.permission('reports.view'),
+                builder: (context, decision) {
+                  return const Text('Guard after denied gate');
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('Hidden reports'), findsNothing);
+
+      final beforeTop = tester.getTopLeft(find.text('Before denied gate')).dy;
+      final afterTop = tester.getTopLeft(find.text('After denied gate')).dy;
+      final guardTop = tester
+          .getTopLeft(find.text('Guard after denied gate'))
+          .dy;
+
+      expect(beforeTop, lessThan(afterTop));
+      expect(afterTop, lessThan(guardTop));
+    });
   });
 
   group('AccessBuilder', () {
@@ -600,14 +706,22 @@ void main() {
     });
   });
 
-  testWidgets('AccessHidden creates no render object', (tester) async {
+  testWidgets('AccessHidden creates a zero-size render object', (tester) async {
     await tester.pumpWidget(
-      const _TestHost(child: AccessHidden(key: Key('hidden'))),
+      const _TestHost(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[AccessHidden(key: Key('hidden'))],
+          ),
+        ),
+      ),
     );
 
     final element = tester.element(find.byKey(const Key('hidden')));
     expect(element, isA<Element>());
-    expect(element, isNot(isA<RenderObjectElement>()));
+    expect(element, isA<RenderObjectElement>());
+    expect(tester.getSize(find.byKey(const Key('hidden'))), Size.zero);
   });
 
   test('AccessEnumKey exposes the enum name as a convenience key', () {

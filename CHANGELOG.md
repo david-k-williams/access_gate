@@ -1,3 +1,9 @@
+## 0.0.3
+
+* Changed `AccessHidden` to render as a zero-size widget so denied gates remain safe inside multi-child layouts.
+* Added render-order regression coverage for denied gates in multi-child layouts and for the example app.
+* Added consumer-oriented usage documentation and a repo-local Codex skill.
+
 ## 0.0.2
 
 * Added policy composition with `AccessPolicy.allOf`, `AccessPolicy.anyOf`, and `AccessPolicy.not`.
@@ -11,4 +17,4 @@
 * Initial release with feature flag, RBAC, permission, and ABAC widget gates.
 * Added `AccessScope`, `AccessController`, `AccessPolicy`, and `AccessContext`.
 * Added typed key helpers for enum-backed features, roles, permissions, and attributes.
-* Added `AccessHidden`, a zero-render-object fallback for denied gates.
+* Added `AccessHidden`, a fallback for denied gates.

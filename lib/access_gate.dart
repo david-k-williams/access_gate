@@ -2,7 +2,7 @@
 ///
 /// Use [AccessScope] to expose the current user's access context, then wrap
 /// protected UI in [AccessGate]. Denied gates render [accessHidden] by default,
-/// which creates an element only and does not add a render object.
+/// which creates a zero-size render object.
 library;
 
 export 'src/access_context.dart';

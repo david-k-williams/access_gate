@@ -19,7 +19,7 @@ state, or a backend policy response, then expose those facts through
 - `AccessGuard` for page-level access decisions.
 - JSON helpers for access contexts and serializable policies.
 - `AccessScope` and `AccessController` for inherited access state.
-- `AccessHidden`, a zero-render-object fallback inspired by `nil`.
+- `AccessHidden`, a zero-size fallback for denied gates.
 
 ## Getting started
 
@@ -189,9 +189,9 @@ extension exposes `myEnumValue.accessKey` as a convenience.
 
 ## Denied access
 
-By default, denied gates render `accessHidden`, which creates only an element and
-does not create a render object. This is useful when a widget should simply
-disappear.
+By default, denied gates render `accessHidden`, a zero-size widget that is safe
+inside layout widgets like `Column`, `Row`, and `Stack`. This is useful when a
+widget should simply disappear.
 
 ```dart
 AccessGate.feature(
@@ -229,6 +229,12 @@ final policyJson = policy.toJson();
 ```
 
 Custom predicate functions are runtime-only and cannot be serialized.
+
+## Agent-friendly usage
+
+Coding agents integrating this package into Flutter apps should read
+`doc/using-access-gate.md`. A repo-local Codex skill for using the package is
+available at `skills/access-gate/`.
 
 ## Important security note
 
