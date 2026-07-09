@@ -29,6 +29,12 @@ AccessScope(
 );
 ```
 
+Create the controller once in an application-owned lifecycle, such as a
+`State` object or dependency container. `AccessScope` listens to the controller
+but does not dispose it. The owner must call `controller.dispose()` when the
+controller is no longer needed. Do not create a new controller inside a widget's
+`build` method.
+
 When the source of truth changes, update the controller:
 
 ```dart
@@ -62,7 +68,7 @@ if (!accessFactsReady) {
 }
 
 return AccessScope(
-  controller: AccessController(accessContext),
+  controller: controller,
   child: const MyApp(),
 );
 ```

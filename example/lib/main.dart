@@ -40,9 +40,8 @@ class _ExampleAppState extends State<ExampleApp> {
           if (_advancedReportsEnabled) AppFeature.advancedReports,
         },
         featureValues: <AppFeature, Object?>{
-          AppFeature.reportsVariant: _variantBEnabled
-              ? 'variant_b'
-              : 'variant_a',
+          AppFeature.reportsVariant:
+              _variantBEnabled ? 'variant_b' : 'variant_a',
         },
       ),
       AccessContext.fromKeys(

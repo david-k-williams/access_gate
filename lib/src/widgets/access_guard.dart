@@ -8,8 +8,8 @@ import 'access_builder.dart';
 import 'access_hidden.dart';
 
 /// Builds a page or route branch with the evaluated [AccessDecision].
-typedef AccessGuardBuilder =
-    Widget Function(BuildContext context, AccessDecision decision);
+typedef AccessGuardBuilder = Widget Function(
+    BuildContext context, AccessDecision decision);
 
 /// Page-level access guard for route bodies, tabs, or full-screen sections.
 class AccessGuard extends StatelessWidget {
@@ -22,10 +22,14 @@ class AccessGuard extends StatelessWidget {
     this.deniedBuilder,
     this.controller,
     this.accessContext,
-  }) : assert(
-         denied == null || deniedBuilder == null,
-         'Provide either denied or deniedBuilder, not both.',
-       );
+  })  : assert(
+          denied == null || deniedBuilder == null,
+          'Provide either denied or deniedBuilder, not both.',
+        ),
+        assert(
+          controller == null || accessContext == null,
+          'Provide either controller or accessContext, not both.',
+        );
 
   /// Policy evaluated before calling [builder] or [deniedBuilder].
   final AccessPolicy policy;

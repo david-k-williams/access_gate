@@ -1,3 +1,11 @@
+## 0.0.5
+
+* Added structural matching, equality, hashing, and defensive copies for nested JSON-compatible feature values and attributes.
+* Changed malformed context and policy JSON to consistently throw `FormatException`.
+* Prevented allowed decisions from carrying denial reasons and aligned `AccessGuard` input validation with the other widgets.
+* Documented `AccessController` ownership and disposal expectations.
+* Expanded compatibility to Dart 3.0 and Flutter 3.10, backed by a CI compatibility matrix.
+
 ## 0.0.4
 
 * Added `AccessContext.merge` and `AccessContext.combine` for building one context from multiple app state sources.

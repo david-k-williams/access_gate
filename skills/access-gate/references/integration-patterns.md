@@ -4,7 +4,7 @@
 
 ```yaml
 dependencies:
-  access_gate: ^0.0.4
+  access_gate: ^0.0.5
 ```
 
 For local package development:
@@ -36,6 +36,10 @@ AccessScope(
   child: const MyApp(),
 );
 ```
+
+Create the controller once in an application-owned lifecycle. `AccessScope`
+does not dispose it, so its owner must call `dispose()` when it is no longer
+needed.
 
 Update after auth, claims, remote config, account, or backend policy changes:
 

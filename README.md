@@ -49,6 +49,11 @@ AccessScope(
 );
 ```
 
+Create the controller once in an application-owned lifecycle, such as a
+`State` object or dependency container. `AccessScope` listens to the controller
+but does not dispose it; the owner should call `dispose()` when it is no longer
+needed.
+
 When access facts come from multiple places, combine them into one context:
 
 ```dart

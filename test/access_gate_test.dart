@@ -69,6 +69,61 @@ void main() {
       expect(AccessContext.fromJson(context.toJson()), context);
     });
 
+    test('deeply copies and compares nested JSON-compatible values', () {
+      final rollout = <Object?>[
+        'pro',
+        <String, Object?>{
+          'regions': <String>['us', 'ca'],
+        },
+      ];
+      final context = AccessContext(
+        featureValues: <String, Object?>{'rollout': rollout},
+        attributes: <String, Object?>{
+          'limits': <String, Object?>{
+            'reports': <int>[10, 20],
+          },
+        },
+      );
+
+      rollout.add('enterprise');
+      final roundTripped = AccessContext.fromJson(context.toJson());
+
+      expect(context.featureValue('rollout'), <Object?>[
+        'pro',
+        <String, Object?>{
+          'regions': <Object?>['us', 'ca'],
+        },
+      ]);
+      expect(roundTripped, context);
+      expect(roundTripped.hashCode, context.hashCode);
+      expect(
+        () => (context.featureValue('rollout')! as List<Object?>).add('team'),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => (context.attribute('limits')!
+            as Map<Object?, Object?>)['reports'] = <int>[30],
+        throwsUnsupportedError,
+      );
+    });
+
+    test('reports malformed JSON with FormatException', () {
+      expect(
+        () => AccessContext.fromJson(<String, Object?>{'roles': 'admin'}),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessContext.fromJson(<String, Object?>{'userId': 42}),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessContext.fromJson(<String, Object?>{
+          'attributes': <Object?, Object?>{1: 'pro'},
+        }),
+        throwsFormatException,
+      );
+    });
+
     test('merges contexts with later map values taking precedence', () {
       final base = AccessContext(
         userId: 'user-1',
@@ -363,6 +418,41 @@ void main() {
       );
     });
 
+    test('matches nested JSON-compatible feature and attribute values', () {
+      final context = AccessContext(
+        featureValues: <String, Object?>{
+          'audience': <Object?>[
+            'pro',
+            <String, Object?>{
+              'regions': <String>['us', 'ca'],
+            },
+          ],
+        },
+        attributes: <String, Object?>{
+          'limits': <String, Object?>{
+            'reports': <int>[10, 20],
+          },
+        },
+      );
+      final policy = AccessPolicy(
+        featureValues: <String, Object?>{
+          'audience': <Object?>[
+            'pro',
+            <String, Object?>{
+              'regions': <String>['us', 'ca'],
+            },
+          ],
+        },
+        attributes: <String, Object?>{
+          'limits': <String, Object?>{
+            'reports': <int>[10, 20],
+          },
+        },
+      );
+
+      expect(policy.evaluate(context), AccessDecision.allow);
+    });
+
     test('allOf allows only when every composed policy allows access', () {
       final context = AccessContext(
         roles: <String>{'admin'},
@@ -516,7 +606,8 @@ void main() {
       expect(
         AccessPolicy.anyOf(<AccessPolicy>[
           AccessPolicy.role('admin'),
-        ], label: 'Admin path').toString(),
+        ], label: 'Admin path')
+            .toString(),
         contains('Admin path'),
       );
     });
@@ -525,6 +616,42 @@ void main() {
       final policy = AccessPolicy(predicate: (context) => true);
 
       expect(policy.toJson, throwsUnsupportedError);
+    });
+
+    test('reports malformed policy JSON with FormatException', () {
+      expect(
+        () => AccessPolicy.fromJson(<String, Object?>{'type': 42}),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessPolicy.fromJson(<String, Object?>{
+          'type': 'leaf',
+          'allPermissions': 'reports.view',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessPolicy.fromJson(<String, Object?>{
+          'type': 'allOf',
+          'policies': <Object?>['not-an-object'],
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessPolicy.fromJson(<String, Object?>{
+          'type': 'allOf',
+          'policies': 42,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessPolicy.fromJson(<String, Object?>{'type': 'unknown'}),
+        throwsFormatException,
+      );
+      expect(
+        () => AccessPolicy.fromJson(<String, Object?>{'type': 'not'}),
+        throwsFormatException,
+      );
     });
   });
 
@@ -822,12 +949,10 @@ void main() {
 
       final typedTop = tester.getTopLeft(find.text('Typed key gate')).dy;
       final stringTop = tester.getTopLeft(find.text('String gate')).dy;
-      final composedTop = tester
-          .getTopLeft(find.text('Composed policy gate'))
-          .dy;
-      final guardTop = tester
-          .getTopLeft(find.text('Guard with JSON policy'))
-          .dy;
+      final composedTop =
+          tester.getTopLeft(find.text('Composed policy gate')).dy;
+      final guardTop =
+          tester.getTopLeft(find.text('Guard with JSON policy')).dy;
 
       expect(typedTop, lessThan(stringTop));
       expect(stringTop, lessThan(composedTop));
@@ -867,9 +992,8 @@ void main() {
 
       final beforeTop = tester.getTopLeft(find.text('Before denied gate')).dy;
       final afterTop = tester.getTopLeft(find.text('After denied gate')).dy;
-      final guardTop = tester
-          .getTopLeft(find.text('Guard after denied gate'))
-          .dy;
+      final guardTop =
+          tester.getTopLeft(find.text('Guard after denied gate')).dy;
 
       expect(beforeTop, lessThan(afterTop));
       expect(afterTop, lessThan(guardTop));
@@ -922,6 +1046,18 @@ void main() {
   });
 
   group('AccessGuard', () {
+    test('rejects both a controller and one-off context', () {
+      expect(
+        () => AccessGuard(
+          policy: AccessPolicy.empty,
+          controller: AccessController(),
+          accessContext: const AccessContext.empty(),
+          builder: (context, decision) => const SizedBox(),
+        ),
+        throwsAssertionError,
+      );
+    });
+
     testWidgets('builds the allowed branch', (tester) async {
       await tester.pumpWidget(
         _TestHost(
@@ -964,6 +1100,16 @@ void main() {
   });
 
   group('AccessDecision', () {
+    test('rejects denial reasons on allowed decisions', () {
+      expect(
+        () => AccessDecision(
+          allowed: true,
+          reasons: <String>['Contradictory reason.'],
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('defensively copies and exposes immutable reasons', () {
       final reasons = <String>['Missing permission: reports.view.'];
       final decision = AccessDecision(allowed: false, reasons: reasons);

@@ -7,8 +7,8 @@ import '../access_policy.dart';
 import 'access_scope.dart';
 
 /// Builds a widget with the evaluated [AccessDecision].
-typedef AccessDecisionWidgetBuilder =
-    Widget Function(BuildContext context, AccessDecision decision);
+typedef AccessDecisionWidgetBuilder = Widget Function(
+    BuildContext context, AccessDecision decision);
 
 /// Lower-level builder for custom access-aware UI.
 class AccessBuilder extends StatelessWidget {
@@ -20,9 +20,9 @@ class AccessBuilder extends StatelessWidget {
     this.controller,
     this.accessContext,
   }) : assert(
-         controller == null || accessContext == null,
-         'Provide either controller or accessContext, not both.',
-       );
+          controller == null || accessContext == null,
+          'Provide either controller or accessContext, not both.',
+        );
 
   /// Policy evaluated before calling [builder].
   final AccessPolicy policy;

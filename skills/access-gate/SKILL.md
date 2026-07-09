@@ -14,6 +14,7 @@ description: Integrate and use the access_gate Flutter package in application co
    authorization source. Use `AccessContext.combine` when facts come from
    multiple existing sources.
 4. Put `AccessScope` above the UI that needs shared access facts.
+   Keep its controller in an application-owned lifecycle and dispose it there.
 5. Choose the smallest UI primitive:
    - Use `AccessGate` for one widget or section.
    - Use `AccessGuard` for a page, route body, or tab.

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: minimum
+            flutter-version: 3.10.6
+            publish: false
+          - label: stable
+            flutter-version: ''
+            publish: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ matrix.flutter-version }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        if: matrix.label == 'stable'
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze package
+        if: matrix.label == 'stable'
+        run: flutter analyze
+
+      - name: Test package
+        run: flutter test
+
+      - name: Analyze example
+        if: matrix.label == 'stable'
+        working-directory: example
+        run: flutter analyze
+
+      - name: Test example
+        working-directory: example
+        run: flutter test
+
+      - name: Validate publish archive
+        if: matrix.publish
+        run: dart pub publish --dry-run

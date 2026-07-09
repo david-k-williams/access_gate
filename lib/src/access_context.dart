@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'access_key.dart';
+import 'access_value.dart';
 
 const Object _unset = Object();
 
@@ -19,20 +20,20 @@ class AccessContext {
     Set<String> roles = const <String>{},
     Set<String> permissions = const <String>{},
     Map<String, Object?> attributes = const <String, Object?>{},
-  }) : enabledFeatures = Set<String>.unmodifiable(enabledFeatures),
-       featureValues = Map<String, Object?>.unmodifiable(featureValues),
-       roles = Set<String>.unmodifiable(roles),
-       permissions = Set<String>.unmodifiable(permissions),
-       attributes = Map<String, Object?>.unmodifiable(attributes);
+  })  : enabledFeatures = Set<String>.unmodifiable(enabledFeatures),
+        featureValues = freezeAccessValueMap(featureValues),
+        roles = Set<String>.unmodifiable(roles),
+        permissions = Set<String>.unmodifiable(permissions),
+        attributes = freezeAccessValueMap(attributes);
 
   /// An empty context with no feature flags, roles, permissions, or attributes.
   const AccessContext.empty()
-    : userId = null,
-      enabledFeatures = const <String>{},
-      featureValues = const <String, Object?>{},
-      roles = const <String>{},
-      permissions = const <String>{},
-      attributes = const <String, Object?>{};
+      : userId = null,
+        enabledFeatures = const <String>{},
+        featureValues = const <String, Object?>{},
+        roles = const <String>{},
+        permissions = const <String>{},
+        attributes = const <String, Object?>{};
 
   /// Creates an access context from typed access keys.
   factory AccessContext.fromKeys({
@@ -58,12 +59,15 @@ class AccessContext {
   /// Creates an access context from JSON-compatible data.
   factory AccessContext.fromJson(Map<String, Object?> json) {
     return AccessContext(
-      userId: json['userId'] as String?,
-      enabledFeatures: _stringSetFromJson(json['enabledFeatures']),
-      featureValues: _objectMapFromJson(json['featureValues']),
-      roles: _stringSetFromJson(json['roles']),
-      permissions: _stringSetFromJson(json['permissions']),
-      attributes: _objectMapFromJson(json['attributes']),
+      userId: jsonOptionalString(json, 'userId'),
+      enabledFeatures: jsonStringSet(
+        json['enabledFeatures'],
+        'enabledFeatures',
+      ),
+      featureValues: jsonAccessValueMap(json['featureValues'], 'featureValues'),
+      roles: jsonStringSet(json['roles'], 'roles'),
+      permissions: jsonStringSet(json['permissions'], 'permissions'),
+      attributes: jsonAccessValueMap(json['attributes'], 'attributes'),
     );
   }
 
@@ -204,10 +208,10 @@ class AccessContext {
     return other is AccessContext &&
         other.userId == userId &&
         setEquals(other.enabledFeatures, enabledFeatures) &&
-        mapEquals(other.featureValues, featureValues) &&
+        _accessMapsEqual(other.featureValues, featureValues) &&
         setEquals(other.roles, roles) &&
         setEquals(other.permissions, permissions) &&
-        mapEquals(other.attributes, attributes);
+        _accessMapsEqual(other.attributes, attributes);
   }
 
   @override
@@ -223,23 +227,23 @@ class AccessContext {
   }
 
   static Object _hashEntry(MapEntry<String, Object?> entry) {
-    return Object.hash(entry.key, entry.value);
+    return Object.hash(entry.key, accessValueHash(entry.value));
   }
 
-  static Set<String> _stringSetFromJson(Object? value) {
-    if (value == null) {
-      return const <String>{};
+  static bool _accessMapsEqual(
+    Map<String, Object?> first,
+    Map<String, Object?> second,
+  ) {
+    if (first.length != second.length) {
+      return false;
     }
-    return Set<String>.unmodifiable((value as Iterable).cast<String>());
-  }
-
-  static Map<String, Object?> _objectMapFromJson(Object? value) {
-    if (value == null) {
-      return const <String, Object?>{};
+    for (final entry in first.entries) {
+      if (!second.containsKey(entry.key) ||
+          !accessValueEquals(entry.value, second[entry.key])) {
+        return false;
+      }
     }
-    return Map<String, Object?>.unmodifiable(
-      (value as Map).cast<String, Object?>(),
-    );
+    return true;
   }
 
   static List<String> _sortedStrings(Set<String> values) {

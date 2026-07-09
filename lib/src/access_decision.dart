@@ -21,6 +21,11 @@ class AccessDecision {
       ...denialReasons,
       ...reasons.map(AccessDenialReason.custom),
     ];
+    if (allowed && typedReasons.isNotEmpty) {
+      throw ArgumentError(
+        'Allowed access decisions cannot contain denial reasons.',
+      );
+    }
     return AccessDecision._(
       allowed: allowed,
       reasons: List<String>.unmodifiable(

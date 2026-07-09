@@ -4,6 +4,7 @@ import 'access_context.dart';
 import 'access_decision.dart';
 import 'access_denial_reason.dart';
 import 'access_key.dart';
+import 'access_value.dart';
 
 /// Custom access check for app-specific ABAC logic.
 typedef AccessPredicate = bool Function(AccessContext context);
@@ -31,10 +32,12 @@ class AccessPolicy {
     required this.predicate,
     required this.predicateReason,
     required this.label,
-    required this._mode,
-    required this._policies,
-    required this._notReason,
-  });
+    required _AccessPolicyMode mode,
+    required List<AccessPolicy> policies,
+    required String notReason,
+  })  : _mode = mode,
+        _policies = policies,
+        _notReason = notReason;
 
   /// Creates a policy from explicit requirements.
   factory AccessPolicy({
@@ -53,12 +56,12 @@ class AccessPolicy {
     return AccessPolicy._(
       allFeatures: Set<String>.unmodifiable(allFeatures),
       anyFeatures: Set<String>.unmodifiable(anyFeatures),
-      featureValues: Map<String, Object?>.unmodifiable(featureValues),
+      featureValues: freezeAccessValueMap(featureValues),
       allRoles: Set<String>.unmodifiable(allRoles),
       anyRoles: Set<String>.unmodifiable(anyRoles),
       allPermissions: Set<String>.unmodifiable(allPermissions),
       anyPermissions: Set<String>.unmodifiable(anyPermissions),
-      attributes: Map<String, Object?>.unmodifiable(attributes),
+      attributes: freezeAccessValueMap(attributes),
       predicate: predicate,
       predicateReason: predicateReason,
       label: label,
@@ -149,36 +152,40 @@ class AccessPolicy {
   /// Predicates cannot be restored from JSON. Use [predicate] directly for
   /// runtime-only checks.
   factory AccessPolicy.fromJson(Map<String, Object?> json) {
-    final type = json['type'] as String? ?? 'leaf';
+    final type = jsonOptionalString(json, 'type') ?? 'leaf';
     return switch (type) {
       'leaf' => AccessPolicy(
-        allFeatures: _stringSetFromJson(json['allFeatures']),
-        anyFeatures: _stringSetFromJson(json['anyFeatures']),
-        featureValues: _objectMapFromJson(json['featureValues']),
-        allRoles: _stringSetFromJson(json['allRoles']),
-        anyRoles: _stringSetFromJson(json['anyRoles']),
-        allPermissions: _stringSetFromJson(json['allPermissions']),
-        anyPermissions: _stringSetFromJson(json['anyPermissions']),
-        attributes: _objectMapFromJson(json['attributes']),
-        predicateReason:
-            json['predicateReason'] as String? ??
-            'Custom access rule rejected access.',
-        label: json['label'] as String?,
-      ),
+          allFeatures: jsonStringSet(json['allFeatures'], 'allFeatures'),
+          anyFeatures: jsonStringSet(json['anyFeatures'], 'anyFeatures'),
+          featureValues: jsonAccessValueMap(
+            json['featureValues'],
+            'featureValues',
+          ),
+          allRoles: jsonStringSet(json['allRoles'], 'allRoles'),
+          anyRoles: jsonStringSet(json['anyRoles'], 'anyRoles'),
+          allPermissions:
+              jsonStringSet(json['allPermissions'], 'allPermissions'),
+          anyPermissions:
+              jsonStringSet(json['anyPermissions'], 'anyPermissions'),
+          attributes: jsonAccessValueMap(json['attributes'], 'attributes'),
+          predicateReason: jsonOptionalString(json, 'predicateReason') ??
+              'Custom access rule rejected access.',
+          label: jsonOptionalString(json, 'label'),
+        ),
       'allOf' => AccessPolicy.allOf(
-        _policiesFromJson(json['policies']),
-        label: json['label'] as String?,
-      ),
+          _policiesFromJson(json['policies']),
+          label: jsonOptionalString(json, 'label'),
+        ),
       'anyOf' => AccessPolicy.anyOf(
-        _policiesFromJson(json['policies']),
-        label: json['label'] as String?,
-      ),
+          _policiesFromJson(json['policies']),
+          label: jsonOptionalString(json, 'label'),
+        ),
       'not' => AccessPolicy.not(
-        AccessPolicy.fromJson(_mapFromJson(json['policy'], 'policy')),
-        reason: json['reason'] as String? ?? _defaultNotReason,
-        label: json['label'] as String?,
-      ),
-      _ => throw ArgumentError.value(type, 'type', 'Unknown policy type.'),
+          AccessPolicy.fromJson(_mapFromJson(json['policy'], 'policy')),
+          reason: jsonOptionalString(json, 'reason') ?? _defaultNotReason,
+          label: jsonOptionalString(json, 'label'),
+        ),
+      _ => throw FormatException('Unknown policy type: $type.'),
     };
   }
 
@@ -395,21 +402,21 @@ class AccessPolicy {
     return switch (_mode) {
       _AccessPolicyMode.leaf => _leafToJson(),
       _AccessPolicyMode.allOf => <String, Object?>{
-        'type': 'allOf',
-        'label': label,
-        'policies': _policies.map((policy) => policy.toJson()).toList(),
-      },
+          'type': 'allOf',
+          'label': label,
+          'policies': _policies.map((policy) => policy.toJson()).toList(),
+        },
       _AccessPolicyMode.anyOf => <String, Object?>{
-        'type': 'anyOf',
-        'label': label,
-        'policies': _policies.map((policy) => policy.toJson()).toList(),
-      },
+          'type': 'anyOf',
+          'label': label,
+          'policies': _policies.map((policy) => policy.toJson()).toList(),
+        },
       _AccessPolicyMode.not => <String, Object?>{
-        'type': 'not',
-        'label': label,
-        'policy': _policies.single.toJson(),
-        'reason': _notReason,
-      },
+          'type': 'not',
+          'label': label,
+          'policy': _policies.single.toJson(),
+          'reason': _notReason,
+        },
     };
   }
 
@@ -454,7 +461,7 @@ class AccessPolicy {
 
     for (final requirement in featureValues.entries) {
       final actual = context.featureValue(requirement.key);
-      if (actual != requirement.value) {
+      if (!accessValueEquals(actual, requirement.value)) {
         reasons.add(
           AccessDenialReason(
             type: AccessDenialReasonType.featureValueMismatch,
@@ -517,7 +524,7 @@ class AccessPolicy {
 
     for (final requirement in attributes.entries) {
       final actual = context.attribute(requirement.key);
-      if (actual != requirement.value) {
+      if (!accessValueEquals(actual, requirement.value)) {
         reasons.add(
           AccessDenialReason(
             type: AccessDenialReasonType.attributeMismatch,
@@ -664,35 +671,16 @@ class AccessPolicy {
     if (value == null) {
       return const <AccessPolicy>[];
     }
-    return (value as Iterable)
+    if (value is! Iterable || value is String) {
+      throw const FormatException('Expected "policies" to be a list.');
+    }
+    return value
         .map((item) => AccessPolicy.fromJson(_mapFromJson(item, 'policies')))
         .toList();
   }
 
-  static Set<String> _stringSetFromJson(Object? value) {
-    if (value == null) {
-      return const <String>{};
-    }
-    return Set<String>.unmodifiable((value as Iterable).cast<String>());
-  }
-
-  static Map<String, Object?> _objectMapFromJson(Object? value) {
-    if (value == null) {
-      return const <String, Object?>{};
-    }
-    return Map<String, Object?>.unmodifiable(
-      (value as Map).cast<String, Object?>(),
-    );
-  }
-
   static Map<String, Object?> _mapFromJson(Object? value, String key) {
-    if (value is Map<String, Object?>) {
-      return value;
-    }
-    if (value is Map) {
-      return value.cast<String, Object?>();
-    }
-    throw ArgumentError.value(value, key, 'Expected a JSON object.');
+    return jsonObject(value, key);
   }
 
   static List<String> _sortedStrings(Set<String> values) {

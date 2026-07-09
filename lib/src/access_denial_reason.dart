@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'access_value.dart';
+
 /// The category of a denied access decision.
 enum AccessDenialReasonType {
   /// A required feature flag was not enabled.
@@ -48,10 +50,12 @@ class AccessDenialReason {
     required this.message,
     this.key,
     this.policyLabel,
-    this.expected,
-    this.actual,
+    Object? expected,
+    Object? actual,
     Set<String> candidates = const <String>{},
-  }) : candidates = Set<String>.unmodifiable(candidates);
+  })  : expected = freezeAccessValue(expected),
+        actual = freezeAccessValue(actual),
+        candidates = Set<String>.unmodifiable(candidates);
 
   /// Creates a custom denial reason from a message.
   factory AccessDenialReason.custom(String message) {
@@ -89,8 +93,8 @@ class AccessDenialReason {
         other.message == message &&
         other.key == key &&
         other.policyLabel == policyLabel &&
-        other.expected == expected &&
-        other.actual == actual &&
+        accessValueEquals(other.expected, expected) &&
+        accessValueEquals(other.actual, actual) &&
         setEquals(other.candidates, candidates);
   }
 
@@ -101,8 +105,8 @@ class AccessDenialReason {
       message,
       key,
       policyLabel,
-      expected,
-      actual,
+      accessValueHash(expected),
+      accessValueHash(actual),
       Object.hashAllUnordered(candidates),
     );
   }

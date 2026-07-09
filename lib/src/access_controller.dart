@@ -8,7 +8,7 @@ import 'access_policy.dart';
 class AccessController extends ChangeNotifier {
   /// Creates a controller with an optional initial [context].
   AccessController([AccessContext? context])
-    : _context = context ?? const AccessContext.empty();
+      : _context = context ?? const AccessContext.empty();
 
   AccessContext _context;
 
